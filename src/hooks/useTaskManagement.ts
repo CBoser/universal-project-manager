@@ -30,10 +30,16 @@ export function useTaskManagement(initialTasks: Task[], initialTaskStates: { [ke
   }, []);
 
   /**
-   * Update an existing task
+   * Update an existing task (accepts full task object or taskId + updates)
    */
-  const updateTask = useCallback((taskId: string, updates: Partial<Task>) => {
-    setTasks(prev => prev.map(t => (t.id === taskId ? { ...t, ...updates } : t)));
+  const updateTask = useCallback((taskOrId: Task | string, updates?: Partial<Task>) => {
+    if (typeof taskOrId === 'string') {
+      // Called with taskId and updates
+      setTasks(prev => prev.map(t => (t.id === taskOrId ? { ...t, ...updates } : t)));
+    } else {
+      // Called with full task object
+      setTasks(prev => prev.map(t => (t.id === taskOrId.id ? taskOrId : t)));
+    }
   }, []);
 
   /**
@@ -46,6 +52,13 @@ export function useTaskManagement(initialTasks: Task[], initialTaskStates: { [ke
       delete newStates[taskId];
       return newStates;
     });
+  }, []);
+
+  /**
+   * Reorder tasks (for drag and drop)
+   */
+  const reorderTasks = useCallback((newTasks: Task[]) => {
+    setTasks(newTasks);
   }, []);
 
   /**
@@ -108,6 +121,7 @@ export function useTaskManagement(initialTasks: Task[], initialTaskStates: { [ke
     addTask,
     updateTask,
     deleteTask,
+    reorderTasks,
     updateTaskState,
     bulkUpdateTaskStates,
     getTaskState,

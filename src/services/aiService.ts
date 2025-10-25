@@ -302,7 +302,7 @@ function adjustForExperience(
     ...response,
     suggestedTasks: response.suggestedTasks.map(task => ({
       ...task,
-      adjustedEstHours: Math.round(task.baseEstHours * multiplier * 10) / 10,
+      adjustedEstHours: Math.round((task.baseEstHours || task.adjustedEstHours) * multiplier * 10) / 10,
     })),
   };
 }
