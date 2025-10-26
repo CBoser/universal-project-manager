@@ -16,6 +16,14 @@ import { EXPERIENCE_MULTIPLIERS, AI_CONFIG } from '../config/constants';
 const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || '';
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_AI === 'true';
 
+// Debug logging
+console.log('🔍 AI Service Debug:');
+console.log('  VITE_ANTHROPIC_API_KEY:', import.meta.env.VITE_ANTHROPIC_API_KEY ? `${import.meta.env.VITE_ANTHROPIC_API_KEY.substring(0, 20)}...` : 'NOT SET');
+console.log('  VITE_USE_MOCK_AI:', import.meta.env.VITE_USE_MOCK_AI);
+console.log('  API_KEY set:', !!API_KEY);
+console.log('  USE_MOCK:', USE_MOCK);
+console.log('  isAvailable would return:', !USE_MOCK && !!API_KEY);
+
 /**
  * Real AI service using Anthropic Claude
  */
