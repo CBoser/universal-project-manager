@@ -18,6 +18,7 @@ import ProjectInfoModal from './components/modals/ProjectInfoModal';
 import PhaseManagementModal from './components/modals/PhaseManagementModal';
 import CategoryManagementModal from './components/modals/CategoryManagementModal';
 import ReportsHistoryModal, { type ProgressSnapshot } from './components/modals/ReportsHistoryModal';
+import DevNotes from './components/dev/DevNotes';
 import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task } from './types';
 
 interface MoveHistory {
@@ -305,13 +306,15 @@ function App() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: theme.bgPrimary,
-      padding: '2rem',
-    }}>
-      {/* Header */}
-      <header style={{ marginBottom: '2rem' }}>
+    <>
+      <DevNotes />
+      <div style={{
+        minHeight: '100vh',
+        background: theme.bgPrimary,
+        padding: '2rem',
+      }}>
+        {/* Header */}
+        <header style={{ marginBottom: '2rem' }}>
         <h1 style={{
           fontSize: '2.5rem',
           marginBottom: '0.5rem',
@@ -892,7 +895,8 @@ function App() {
           Universal Project Manager - Works for ANY type of project
         </p>
       </footer>
-    </div>
+      </div>
+    </>
   );
 }
 
