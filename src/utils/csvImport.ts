@@ -57,6 +57,16 @@ export function parseCSV(csvText: string): Task[] {
   };
 
   console.log('Column mapping:', columnMap);
+  console.log('  Task column:', columnMap.task >= 0 ? `${columnMap.task} ("${header[columnMap.task]}")` : 'NOT FOUND');
+  console.log('  Phase column:', columnMap.phase >= 0 ? `${columnMap.phase} ("${header[columnMap.phase]}")` : 'NOT FOUND');
+  console.log('  Category column:', columnMap.category >= 0 ? `${columnMap.category} ("${header[columnMap.category]}")` : 'NOT FOUND');
+  console.log('  EstHours column:', columnMap.estHours >= 0 ? `${columnMap.estHours} ("${header[columnMap.estHours]}")` : 'NOT FOUND');
+
+  // Validate that we found the required columns
+  if (columnMap.task < 0) {
+    console.error('ERROR: Could not find Task column in CSV. Please ensure your CSV has a column named "Task", "Name", or "Title"');
+    throw new Error('CSV must have a Task/Name/Title column');
+  }
 
   // Parse data rows
   for (let i = headerIndex + 1; i < lines.length; i++) {
@@ -66,17 +76,21 @@ export function parseCSV(csvText: string): Task[] {
     const values = parseCSVLine(line, delimiter);
     if (values.length < 2) continue; // Skip empty or invalid rows
 
-    const estHoursValue = values[columnMap.estHours];
+    // Get values, handling -1 (not found) column indices
+    const taskValue = values[columnMap.task] || '';
+    const phaseValue = columnMap.phase >= 0 ? values[columnMap.phase] : '';
+    const categoryValue = columnMap.category >= 0 ? values[columnMap.category] : '';
+    const estHoursValue = columnMap.estHours >= 0 ? values[columnMap.estHours] : '';
     const parsedHours = parseFloat(estHoursValue);
 
-    console.log(`Row ${i}: Task="${values[columnMap.task]}", EstHours="${estHoursValue}" -> ${parsedHours}`);
+    console.log(`Row ${i}: Task="${taskValue}", Phase="${phaseValue}", Category="${categoryValue}", EstHours="${estHoursValue}" -> ${parsedHours}`);
 
     const task: Task = {
       id: `import_${Date.now()}_${i}`,
-      task: values[columnMap.task] || `Task ${i}`,
-      phase: (values[columnMap.phase] || 'imported').toLowerCase().replace(/\s+/g, '_'),
-      phaseTitle: values[columnMap.phase] || 'Imported',
-      category: values[columnMap.category] || 'Other',
+      task: taskValue || `Task ${i}`,
+      phase: (phaseValue || 'imported').toLowerCase().replace(/\s+/g, '_'),
+      phaseTitle: phaseValue || 'Imported',
+      category: categoryValue || 'Other',
       baseEstHours: parsedHours || 0,
       adjustedEstHours: parsedHours || 0,
     };
@@ -133,7 +147,7 @@ function findColumnIndex(header: string[], possibleNames: string[]): number {
       return i;
     }
   }
-  return 0; // Default to first column if not found
+  return -1; // Return -1 if not found (instead of defaulting to 0)
 }
 
 /**
