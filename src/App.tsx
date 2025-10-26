@@ -18,6 +18,7 @@ import ProjectInfoModal from './components/modals/ProjectInfoModal';
 import PhaseManagementModal from './components/modals/PhaseManagementModal';
 import CategoryManagementModal from './components/modals/CategoryManagementModal';
 import ReportsHistoryModal, { type ProgressSnapshot } from './components/modals/ReportsHistoryModal';
+import AnalyticsReportsModal from './components/modals/AnalyticsReportsModal';
 import DevNotes from './components/dev/DevNotes';
 import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task } from './types';
 
@@ -59,6 +60,7 @@ function App() {
   const [showPhaseManagementModal, setShowPhaseManagementModal] = useState(false);
   const [showCategoryManagementModal, setShowCategoryManagementModal] = useState(false);
   const [showReportsHistoryModal, setShowReportsHistoryModal] = useState(false);
+  const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
 
   // Task editing
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
@@ -470,6 +472,21 @@ function App() {
             cursor: 'pointer',
           }}>
           📈 History
+        </button>
+
+        <button
+          onClick={() => setShowAnalyticsModal(true)}
+          style={{
+            padding: '0.75rem 1.25rem',
+            background: '#2196f3',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: '0.95rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+          }}>
+          📊 Analytics
         </button>
 
         <button
@@ -886,6 +903,16 @@ function App() {
         onClose={() => setShowReportsHistoryModal(false)}
         snapshots={progressSnapshots}
         onDeleteSnapshot={handleDeleteSnapshot}
+      />
+
+      <AnalyticsReportsModal
+        show={showAnalyticsModal}
+        onClose={() => setShowAnalyticsModal(false)}
+        tasks={tasks}
+        taskStates={taskStates}
+        projectMeta={projectMeta}
+        phases={phases}
+        phaseColors={phaseColors}
       />
 
       {/* Footer */}
