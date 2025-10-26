@@ -40,6 +40,10 @@ export const aiService = {
 
     const prompt = buildProjectAnalysisPrompt(request);
 
+    // Log prompt length for debugging
+    console.log('📊 Prompt length:', prompt.length, 'characters');
+    console.log('📊 Estimated tokens:', Math.ceil(prompt.length / 4));
+
     try {
       const anthropic = new Anthropic({ apiKey: API_KEY });
 
@@ -62,7 +66,19 @@ export const aiService = {
       // Adjust task estimates based on experience level
       return adjustForExperience(analysisResult, request.experienceLevel);
     } catch (error) {
-      console.error('Error calling Claude API:', error);
+      console.error('❌ Error calling Claude API:', error);
+
+      // Log more details about the error
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+
+      // Check if it's an API error with more details
+      if (typeof error === 'object' && error !== null) {
+        console.error('Full error object:', JSON.stringify(error, null, 2));
+      }
+
       throw new Error('Failed to analyze project. Please check your API key and try again.');
     }
   },
