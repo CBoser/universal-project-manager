@@ -8,7 +8,9 @@ import type { Task } from '../types';
  * Parse CSV file and convert to tasks
  */
 export function parseCSV(csvText: string): Task[] {
-  const lines = csvText.split('\n').map(line => line.trim());
+  // Remove BOM (Byte Order Mark) if present
+  const cleanText = csvText.replace(/^\uFEFF/, '');
+  const lines = cleanText.split('\n').map(line => line.trim());
   const tasks: Task[] = [];
 
   // Find header row (should contain "Task" column)
@@ -105,15 +107,26 @@ function findColumnIndex(header: string[], possibleNames: string[]): number {
  * Validate CSV structure
  */
 export function validateCSV(csvText: string): { valid: boolean; error?: string } {
-  const lines = csvText.split('\n').filter(line => line.trim());
+  // Remove BOM if present
+  const cleanText = csvText.replace(/^\uFEFF/, '');
+  const lines = cleanText.split('\n').map(line => line.trim()).filter(line => line);
 
   if (lines.length < 2) {
     return { valid: false, error: 'CSV must have at least a header row and one data row' };
   }
 
-  const header = parseCSVLine(lines[0]);
-  if (!header.some(col => col.toLowerCase().includes('task'))) {
-    return { valid: false, error: 'CSV must have a "Task" column' };
+  // Find header row (search first 10 lines, same as parseCSV)
+  let headerFound = false;
+  for (let i = 0; i < Math.min(10, lines.length); i++) {
+    const header = parseCSVLine(lines[i]);
+    if (header.some(col => col.toLowerCase().trim().includes('task'))) {
+      headerFound = true;
+      break;
+    }
+  }
+
+  if (!headerFound) {
+    return { valid: false, error: 'CSV must have a "Task" column (searched first 10 lines)' };
   }
 
   return { valid: true };
