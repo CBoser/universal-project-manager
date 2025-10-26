@@ -5,6 +5,25 @@
 import type { Task } from '../types';
 
 /**
+ * Detect delimiter (comma or tab)
+ */
+function detectDelimiter(csvText: string): string {
+  // Take first few non-empty lines
+  const lines = csvText.split('\n').filter(l => l.trim()).slice(0, 5);
+
+  let commaCount = 0;
+  let tabCount = 0;
+
+  for (const line of lines) {
+    commaCount += (line.match(/,/g) || []).length;
+    tabCount += (line.match(/\t/g) || []).length;
+  }
+
+  // Return tab if more tabs than commas, otherwise comma
+  return tabCount > commaCount ? '\t' : ',';
+}
+
+/**
  * Parse CSV file and convert to tasks
  */
 export function parseCSV(csvText: string): Task[] {
@@ -12,6 +31,10 @@ export function parseCSV(csvText: string): Task[] {
   const cleanText = csvText.replace(/^\uFEFF/, '');
   const lines = cleanText.split('\n').map(line => line.trim());
   const tasks: Task[] = [];
+
+  // Detect delimiter (comma or tab)
+  const delimiter = detectDelimiter(cleanText);
+  console.log('Detected CSV delimiter:', delimiter === '\t' ? 'TAB' : 'COMMA');
 
   // Find header row (should contain "Task" column)
   let headerIndex = 0;
@@ -23,7 +46,9 @@ export function parseCSV(csvText: string): Task[] {
   }
 
   // Parse header to get column indices
-  const header = parseCSVLine(lines[headerIndex]);
+  const header = parseCSVLine(lines[headerIndex], delimiter);
+  console.log('CSV Header columns:', header);
+
   const columnMap = {
     task: findColumnIndex(header, ['task', 'name', 'title']),
     phase: findColumnIndex(header, ['phase', 'stage']),
@@ -31,13 +56,20 @@ export function parseCSV(csvText: string): Task[] {
     estHours: findColumnIndex(header, ['estimated hours', 'estimate', 'hours', 'est hours', 'estimated']),
   };
 
+  console.log('Column mapping:', columnMap);
+
   // Parse data rows
   for (let i = headerIndex + 1; i < lines.length; i++) {
     const line = lines[i];
     if (!line) continue;
 
-    const values = parseCSVLine(line);
+    const values = parseCSVLine(line, delimiter);
     if (values.length < 2) continue; // Skip empty or invalid rows
+
+    const estHoursValue = values[columnMap.estHours];
+    const parsedHours = parseFloat(estHoursValue);
+
+    console.log(`Row ${i}: Task="${values[columnMap.task]}", EstHours="${estHoursValue}" -> ${parsedHours}`);
 
     const task: Task = {
       id: `import_${Date.now()}_${i}`,
@@ -45,20 +77,21 @@ export function parseCSV(csvText: string): Task[] {
       phase: (values[columnMap.phase] || 'imported').toLowerCase().replace(/\s+/g, '_'),
       phaseTitle: values[columnMap.phase] || 'Imported',
       category: values[columnMap.category] || 'Other',
-      baseEstHours: parseFloat(values[columnMap.estHours]) || 0,
-      adjustedEstHours: parseFloat(values[columnMap.estHours]) || 0,
+      baseEstHours: parsedHours || 0,
+      adjustedEstHours: parsedHours || 0,
     };
 
     tasks.push(task);
   }
 
+  console.log(`Imported ${tasks.length} tasks`);
   return tasks;
 }
 
 /**
- * Parse a single CSV line handling quoted fields
+ * Parse a single CSV line handling quoted fields and custom delimiter
  */
-function parseCSVLine(line: string): string[] {
+function parseCSVLine(line: string, delimiter: string = ','): string[] {
   const result: string[] = [];
   let current = '';
   let inQuotes = false;
@@ -75,7 +108,7 @@ function parseCSVLine(line: string): string[] {
         // Toggle quote state
         inQuotes = !inQuotes;
       }
-    } else if (char === ',' && !inQuotes) {
+    } else if (char === delimiter && !inQuotes) {
       // Field separator
       result.push(current.trim());
       current = '';
@@ -115,10 +148,13 @@ export function validateCSV(csvText: string): { valid: boolean; error?: string }
     return { valid: false, error: 'CSV must have at least a header row and one data row' };
   }
 
+  // Detect delimiter
+  const delimiter = detectDelimiter(cleanText);
+
   // Find header row (search first 10 lines, same as parseCSV)
   let headerFound = false;
   for (let i = 0; i < Math.min(10, lines.length); i++) {
-    const header = parseCSVLine(lines[i]);
+    const header = parseCSVLine(lines[i], delimiter);
     if (header.some(col => col.toLowerCase().trim().includes('task'))) {
       headerFound = true;
       break;
