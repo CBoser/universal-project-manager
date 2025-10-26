@@ -20,6 +20,7 @@ import CategoryManagementModal from './components/modals/CategoryManagementModal
 import ReportsHistoryModal, { type ProgressSnapshot } from './components/modals/ReportsHistoryModal';
 import AnalyticsReportsModal from './components/modals/AnalyticsReportsModal';
 import CollaboratorManagementModal from './components/modals/CollaboratorManagementModal';
+import VersionManagementModal from './components/modals/VersionManagementModal';
 import DevNotes from './components/dev/DevNotes';
 import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator } from './types';
 
@@ -40,6 +41,7 @@ function App() {
   const {
     tasks,
     taskStates,
+    setTasks,
     setTaskStates,
     addTask,
     updateTask,
@@ -64,6 +66,7 @@ function App() {
   const [showReportsHistoryModal, setShowReportsHistoryModal] = useState(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [showCollaboratorModal, setShowCollaboratorModal] = useState(false);
+  const [showVersionModal, setShowVersionModal] = useState(false);
 
   // Task editing
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
@@ -218,6 +221,25 @@ function App() {
 
   const handleSaveCategories = (newCategories: string[]) => {
     setCategories(newCategories);
+  };
+
+  const handleRestoreVersion = (version: any) => {
+    // Restore all project data from the version
+    setTasks(version.tasks);
+    setTaskStates(version.taskStates);
+    setProjectMeta(version.projectMeta);
+
+    // Note: phaseColors, categories, and progressSnapshots are stored in projectMeta
+    // or can be added to the version structure if needed
+    if (version.phaseColors) {
+      setPhaseColors(version.phaseColors);
+    }
+    if (version.categories) {
+      setCategories(version.categories);
+    }
+    if (version.progressSnapshots) {
+      setProgressSnapshots(version.progressSnapshots);
+    }
   };
 
   const handleSaveSnapshot = () => {
@@ -404,6 +426,21 @@ function App() {
             cursor: 'pointer',
           }}>
           👥 Team
+        </button>
+
+        <button
+          onClick={() => setShowVersionModal(true)}
+          style={{
+            padding: '0.75rem 1.25rem',
+            background: '#FF9800',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: '0.95rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+          }}>
+          🔖 Versions
         </button>
 
         <button
@@ -988,6 +1025,17 @@ function App() {
         onUpdateCollaborators={(collaborators: Collaborator[]) => {
           setProjectMeta({ ...projectMeta, collaborators });
         }}
+      />
+
+      <VersionManagementModal
+        show={showVersionModal}
+        onClose={() => setShowVersionModal(false)}
+        currentData={{
+          tasks,
+          taskStates,
+          projectMeta,
+        }}
+        onRestore={handleRestoreVersion}
       />
 
       {/* Footer */}
