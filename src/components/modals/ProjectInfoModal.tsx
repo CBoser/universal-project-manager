@@ -72,11 +72,13 @@ export default function ProjectInfoModal({
       experienceLevel,
       status,
       description: description.trim() || undefined,
+      initialPrompt: projectMeta.initialPrompt, // Preserve the initial prompt
       lead: lead.trim() || undefined,
       startDate: startDate || undefined,
       targetEndDate: targetEndDate || undefined,
       budget: budget ? parseFloat(budget) : undefined,
       timeline: timeline.trim() || undefined,
+      collaborators: projectMeta.collaborators, // Preserve collaborators
     };
 
     onSave(updatedMeta);
@@ -114,6 +116,27 @@ export default function ProjectInfoModal({
           }}
         />
       </div>
+
+      {projectMeta.initialPrompt && (
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem', color: theme.textMuted, fontWeight: '600' }}>
+            Initial AI Prompt (Read-Only)
+          </label>
+          <textarea
+            value={projectMeta.initialPrompt}
+            readOnly
+            rows={3}
+            style={{
+              ...inputStyle,
+              fontFamily: 'inherit',
+              resize: 'vertical',
+              background: '#f5f5f5',
+              color: '#666',
+              cursor: 'not-allowed',
+            }}
+          />
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
         <div>

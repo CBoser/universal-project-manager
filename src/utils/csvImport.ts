@@ -2,7 +2,7 @@
 // Universal Project Manager - CSV Import Utility
 // ============================================
 
-import type { Task } from '../types';
+import type { Task, ProjectMeta } from '../types';
 
 /**
  * Detect delimiter (comma or tab)
@@ -24,13 +24,84 @@ function detectDelimiter(csvText: string): string {
 }
 
 /**
- * Parse CSV file and convert to tasks
+ * Parse project metadata from CSV header
  */
-export function parseCSV(csvText: string): Task[] {
+function parseMetadata(lines: string[]): Partial<ProjectMeta> {
+  const metadata: Partial<ProjectMeta> = {};
+
+  for (const line of lines) {
+    // Stop at blank lines or section headers
+    if (!line.trim() || line.startsWith('SUMMARY') || line.startsWith('TASK')) break;
+
+    // Parse key-value pairs
+    const colonIndex = line.indexOf(':');
+    if (colonIndex > 0) {
+      const key = line.substring(0, colonIndex).trim();
+      const value = line.substring(colonIndex + 1).trim();
+
+      switch (key.toLowerCase()) {
+        case 'description':
+          metadata.description = value;
+          break;
+        case 'initial prompt':
+          metadata.initialPrompt = value;
+          break;
+        case 'project type':
+          metadata.projectType = value as any;
+          break;
+        case 'experience level':
+          metadata.experienceLevel = value as any;
+          break;
+        case 'project lead':
+          if (value && value !== 'Not specified') metadata.lead = value;
+          break;
+        case 'status':
+          metadata.status = value as any;
+          break;
+        case 'start date':
+          metadata.startDate = value;
+          break;
+        case 'target end date':
+          metadata.targetEndDate = value;
+          break;
+        case 'budget':
+          const budgetMatch = value.match(/[\d,]+/);
+          if (budgetMatch) {
+            metadata.budget = parseFloat(budgetMatch[0].replace(/,/g, ''));
+          }
+          break;
+      }
+    }
+
+    // Extract project name from title line
+    if (line.startsWith('#') || line.includes('Project Progress Report')) {
+      const nameMatch = line.match(/^#?\s*(.+?)\s*-\s*Project/);
+      if (nameMatch) {
+        metadata.name = nameMatch[1].trim();
+      }
+    }
+  }
+
+  return metadata;
+}
+
+export interface CSVImportResult {
+  tasks: Task[];
+  metadata: Partial<ProjectMeta>;
+}
+
+/**
+ * Parse CSV file and convert to tasks with metadata
+ */
+export function parseCSV(csvText: string): CSVImportResult {
   // Remove BOM (Byte Order Mark) if present
   const cleanText = csvText.replace(/^\uFEFF/, '');
   const lines = cleanText.split('\n').map(line => line.trim());
   const tasks: Task[] = [];
+
+  // Parse metadata from header
+  const metadata = parseMetadata(lines);
+  console.log('Parsed metadata:', metadata);
 
   // Detect delimiter (comma or tab)
   const delimiter = detectDelimiter(cleanText);
@@ -53,14 +124,13 @@ export function parseCSV(csvText: string): Task[] {
     task: findColumnIndex(header, ['task', 'name', 'title']),
     phase: findColumnIndex(header, ['phase', 'stage']),
     category: findColumnIndex(header, ['category', 'type']),
-    estHours: findColumnIndex(header, ['estimated hours', 'estimate', 'hours', 'est hours', 'estimated']),
+    estHours: findColumnIndex(header, ['estimated hours', 'est hours', 'estimate']),
+    actualHours: findColumnIndex(header, ['actual hours', 'actual']),
+    status: findColumnIndex(header, ['status', 'state']),
+    notes: findColumnIndex(header, ['notes', 'note', 'description']),
   };
 
-  console.log('Column mapping:', columnMap);
-  console.log('  Task column:', columnMap.task >= 0 ? `${columnMap.task} ("${header[columnMap.task]}")` : 'NOT FOUND');
-  console.log('  Phase column:', columnMap.phase >= 0 ? `${columnMap.phase} ("${header[columnMap.phase]}")` : 'NOT FOUND');
-  console.log('  Category column:', columnMap.category >= 0 ? `${columnMap.category} ("${header[columnMap.category]}")` : 'NOT FOUND');
-  console.log('  EstHours column:', columnMap.estHours >= 0 ? `${columnMap.estHours} ("${header[columnMap.estHours]}")` : 'NOT FOUND');
+  console.log('Column mapping results:');
 
   // Validate that we found the required columns
   if (columnMap.task < 0) {
@@ -81,25 +151,43 @@ export function parseCSV(csvText: string): Task[] {
     const phaseValue = columnMap.phase >= 0 ? values[columnMap.phase] : '';
     const categoryValue = columnMap.category >= 0 ? values[columnMap.category] : '';
     const estHoursValue = columnMap.estHours >= 0 ? values[columnMap.estHours] : '';
-    const parsedHours = parseFloat(estHoursValue);
+    const actualHoursValue = columnMap.actualHours >= 0 ? values[columnMap.actualHours] : '';
+    const statusValue = columnMap.status >= 0 ? values[columnMap.status] : '';
+    // const notesValue = columnMap.notes >= 0 ? values[columnMap.notes] : '';  // Reserved for future use
 
-    console.log(`Row ${i}: Task="${taskValue}", Phase="${phaseValue}", Category="${categoryValue}", EstHours="${estHoursValue}" -> ${parsedHours}`);
+    const parsedEstHours = parseFloat(estHoursValue);
+    // const parsedActualHours = parseFloat(actualHoursValue);  // Reserved for future use
+
+    console.log(`Row ${i}:`, {
+      task: taskValue,
+      phase: phaseValue,
+      category: categoryValue,
+      estHours: estHoursValue,
+      actualHours: actualHoursValue,
+      status: statusValue,
+    });
+
+    // Skip rows where task is empty
+    if (!taskValue.trim()) {
+      console.log(`  Skipping row ${i}: empty task`);
+      continue;
+    }
 
     const task: Task = {
       id: `import_${Date.now()}_${i}`,
-      task: taskValue || `Task ${i}`,
+      task: taskValue,
       phase: (phaseValue || 'imported').toLowerCase().replace(/\s+/g, '_'),
       phaseTitle: phaseValue || 'Imported',
       category: categoryValue || 'Other',
-      baseEstHours: parsedHours || 0,
-      adjustedEstHours: parsedHours || 0,
+      baseEstHours: parsedEstHours || 0,
+      adjustedEstHours: parsedEstHours || 0,
     };
 
     tasks.push(task);
   }
 
   console.log(`Imported ${tasks.length} tasks`);
-  return tasks;
+  return { tasks, metadata };
 }
 
 /**
@@ -139,15 +227,29 @@ function parseCSVLine(line: string, delimiter: string = ','): string[] {
 
 /**
  * Find column index by matching against possible names
+ * Prioritizes exact matches, then partial matches
  */
 function findColumnIndex(header: string[], possibleNames: string[]): number {
-  for (let i = 0; i < header.length; i++) {
-    const col = header[i].toLowerCase().trim();
-    if (possibleNames.some(name => col.includes(name))) {
+  const normalizedHeader = header.map(h => h.toLowerCase().trim());
+
+  // First pass: exact matches
+  for (let i = 0; i < normalizedHeader.length; i++) {
+    if (possibleNames.some(name => normalizedHeader[i] === name)) {
+      console.log(`  Found exact match for "${possibleNames[0]}" at index ${i}: "${header[i]}"`);
       return i;
     }
   }
-  return -1; // Return -1 if not found (instead of defaulting to 0)
+
+  // Second pass: partial matches
+  for (let i = 0; i < normalizedHeader.length; i++) {
+    if (possibleNames.some(name => normalizedHeader[i].includes(name))) {
+      console.log(`  Found partial match for "${possibleNames[0]}" at index ${i}: "${header[i]}"`);
+      return i;
+    }
+  }
+
+  console.log(`  No match found for "${possibleNames[0]}"`);
+  return -1; // Return -1 if not found
 }
 
 /**

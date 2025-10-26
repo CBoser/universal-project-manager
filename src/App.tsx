@@ -68,6 +68,14 @@ function App() {
   const [showCollaboratorModal, setShowCollaboratorModal] = useState(false);
   const [showVersionModal, setShowVersionModal] = useState(false);
 
+  // Autosave states
+  const [lastSaved, setLastSaved] = useState<string | null>(savedData?.savedAt || null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [autoSaveInterval, setAutoSaveInterval] = useState<number>(() => {
+    const saved = localStorage.getItem('autoSaveInterval');
+    return saved ? parseInt(saved) : 5; // Default 5 minutes
+  });
+
   // Task editing
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
 
@@ -105,26 +113,44 @@ function App() {
     phaseTaskCounts[task.phase] = (phaseTaskCounts[task.phase] || 0) + 1;
   });
 
-  // Auto-save every 5 minutes
+  // Auto-save at configured interval
   useEffect(() => {
+    if (autoSaveInterval <= 0) return; // Autosave disabled
+
     const interval = setInterval(() => {
-      handleSave(false);
-    }, 5 * 60 * 1000);
+      handleSave(false); // Silent autosave
+    }, autoSaveInterval * 60 * 1000);
+
     return () => clearInterval(interval);
-  }, [tasks, taskStates, projectMeta, phaseColors, categories, progressSnapshots]);
+  }, [tasks, taskStates, projectMeta, phaseColors, categories, progressSnapshots, autoSaveInterval]);
+
+  // Save autosave interval to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('autoSaveInterval', autoSaveInterval.toString());
+  }, [autoSaveInterval]);
 
   const handleSave = (showAlert: boolean = true) => {
-    storageService.save({
-      tasks,
-      taskStates,
-      projectMeta,
-      phaseColors,
-      categories,
-      progressSnapshots,
-      savedAt: new Date().toISOString(),
-    });
-    if (showAlert) {
-      alert('Progress saved!');
+    setIsSaving(true);
+
+    try {
+      const now = new Date().toISOString();
+      storageService.save({
+        tasks,
+        taskStates,
+        projectMeta,
+        phaseColors,
+        categories,
+        progressSnapshots,
+        savedAt: now,
+      });
+
+      setLastSaved(now);
+
+      if (showAlert) {
+        alert('Progress saved!');
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -151,6 +177,7 @@ function App() {
         projectType: request.projectType,
         experienceLevel: request.experienceLevel,
         description: request.projectDescription,
+        initialPrompt: request.projectDescription, // Store the original AI prompt
         name: request.projectDescription.substring(0, 50) + (request.projectDescription.length > 50 ? '...' : ''),
       }));
 
@@ -161,12 +188,25 @@ function App() {
     }
   };
 
-  const handleImport = (newTasks: Task[], _newPhases: any, newPhaseColors: any) => {
+  const handleImport = (newTasks: Task[], _newPhases: any, newPhaseColors: any, metadata?: Partial<ProjectMeta>) => {
     // Add all imported tasks
     newTasks.forEach(task => addTask(task));
 
     // Merge phase colors
     setPhaseColors({ ...phaseColors, ...newPhaseColors });
+
+    // Update project metadata if provided
+    if (metadata && Object.keys(metadata).length > 0) {
+      setProjectMeta(prev => ({
+        ...prev,
+        ...metadata,
+        // Preserve existing collaborators if not in import
+        collaborators: metadata.collaborators || prev.collaborators,
+      }));
+
+      const fieldsUpdated = Object.keys(metadata).filter(k => metadata[k as keyof ProjectMeta] !== undefined);
+      console.log('Updated project metadata fields:', fieldsUpdated);
+    }
   };
 
   const handleExportCSV = () => {
@@ -371,9 +411,74 @@ function App() {
         }}>
           🚀 Universal Project Manager
         </h1>
-        <p style={{ color: theme.textMuted, fontSize: '1.1rem' }}>
+        <p style={{ color: theme.textMuted, fontSize: '1.1rem', marginBottom: '0.5rem' }}>
           AI-powered project management for ANY type of project
         </p>
+
+        {/* Autosave Indicator */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          fontSize: '0.85rem',
+          color: theme.textMuted,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {isSaving ? (
+              <>
+                <span style={{ color: '#FF9800' }}>●</span>
+                <span>Saving...</span>
+              </>
+            ) : lastSaved ? (
+              <>
+                <span style={{ color: '#4CAF50' }}>●</span>
+                <span>Last saved: {new Date(lastSaved).toLocaleTimeString()}</span>
+              </>
+            ) : (
+              <>
+                <span style={{ color: '#999' }}>●</span>
+                <span>Not saved yet</span>
+              </>
+            )}
+          </div>
+
+          {/* Autosave Settings */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>Autosave:</span>
+            <select
+              value={autoSaveInterval}
+              onChange={(e) => setAutoSaveInterval(parseInt(e.target.value))}
+              style={{
+                padding: '0.25rem 0.5rem',
+                fontSize: '0.85rem',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                background: '#fff',
+                cursor: 'pointer',
+              }}>
+              <option value="0">Disabled</option>
+              <option value="1">Every 1 min</option>
+              <option value="3">Every 3 min</option>
+              <option value="5">Every 5 min</option>
+              <option value="10">Every 10 min</option>
+            </select>
+          </div>
+
+          <button
+            onClick={() => handleSave(true)}
+            style={{
+              padding: '0.25rem 0.75rem',
+              fontSize: '0.85rem',
+              background: theme.accentGreen,
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: '600',
+            }}>
+            💾 Save Now
+          </button>
+        </div>
       </header>
 
       {/* Action Buttons */}

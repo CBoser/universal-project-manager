@@ -16,12 +16,27 @@ export function exportToCSV(
   let csv = '';
 
   // Header section
-  csv += `${projectMeta.name} - Project Progress Report\n`;
+  csv += `# ${projectMeta.name} - Project Progress Report\n`;
   csv += `Generated: ${new Date().toLocaleString()}\n`;
+  if (projectMeta.description) {
+    csv += `Description: ${projectMeta.description.replace(/\n/g, ' ')}\n`;
+  }
+  if (projectMeta.initialPrompt) {
+    csv += `Initial Prompt: ${projectMeta.initialPrompt.replace(/\n/g, ' ')}\n`;
+  }
   csv += `Project Type: ${projectMeta.projectType}\n`;
   csv += `Experience Level: ${projectMeta.experienceLevel}\n`;
-  csv += `Project Lead: ${projectMeta.lead}\n`;
+  csv += `Project Lead: ${projectMeta.lead || 'Not specified'}\n`;
   csv += `Status: ${projectMeta.status}\n`;
+  if (projectMeta.startDate) {
+    csv += `Start Date: ${projectMeta.startDate}\n`;
+  }
+  if (projectMeta.targetEndDate) {
+    csv += `Target End Date: ${projectMeta.targetEndDate}\n`;
+  }
+  if (projectMeta.budget) {
+    csv += `Budget: $${projectMeta.budget.toLocaleString()}\n`;
+  }
   csv += `\n`;
 
   // Summary statistics
