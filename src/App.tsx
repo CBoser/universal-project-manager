@@ -19,8 +19,9 @@ import PhaseManagementModal from './components/modals/PhaseManagementModal';
 import CategoryManagementModal from './components/modals/CategoryManagementModal';
 import ReportsHistoryModal, { type ProgressSnapshot } from './components/modals/ReportsHistoryModal';
 import AnalyticsReportsModal from './components/modals/AnalyticsReportsModal';
+import CollaboratorManagementModal from './components/modals/CollaboratorManagementModal';
 import DevNotes from './components/dev/DevNotes';
-import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task } from './types';
+import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator } from './types';
 
 interface MoveHistory {
   taskId: string;
@@ -39,6 +40,7 @@ function App() {
   const {
     tasks,
     taskStates,
+    setTaskStates,
     addTask,
     updateTask,
     deleteTask,
@@ -61,6 +63,7 @@ function App() {
   const [showCategoryManagementModal, setShowCategoryManagementModal] = useState(false);
   const [showReportsHistoryModal, setShowReportsHistoryModal] = useState(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
+  const [showCollaboratorModal, setShowCollaboratorModal] = useState(false);
 
   // Task editing
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
@@ -247,6 +250,25 @@ function App() {
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+
+    // Auto-scroll functionality
+    const scrollThreshold = 100; // pixels from edge to trigger scroll
+    const scrollSpeed = 10; // pixels per frame
+
+    const container = (e.currentTarget as HTMLElement).closest('tbody')?.parentElement;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const mouseY = e.clientY;
+
+    // Scroll up if near top
+    if (mouseY - rect.top < scrollThreshold) {
+      container.scrollTop -= scrollSpeed;
+    }
+    // Scroll down if near bottom
+    else if (rect.bottom - mouseY < scrollThreshold) {
+      container.scrollTop += scrollSpeed;
+    }
   };
 
   const handleDrop = (targetTaskId: string) => {
@@ -367,6 +389,21 @@ function App() {
             cursor: 'pointer',
           }}>
           ℹ️ Project Info
+        </button>
+
+        <button
+          onClick={() => setShowCollaboratorModal(true)}
+          style={{
+            padding: '0.75rem 1.25rem',
+            background: '#9C27B0',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: '0.95rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+          }}>
+          👥 Team
         </button>
 
         <button
@@ -768,20 +805,44 @@ function App() {
                         </button>
                       </td>
                       <td style={{ padding: '1rem', color: theme.textPrimary }}>
-                        {task.task}
-                        {task.criticalPath && (
-                          <span style={{
-                            marginLeft: '0.5rem',
-                            padding: '0.25rem 0.5rem',
-                            background: theme.accentRed,
-                            color: '#fff',
-                            fontSize: '0.75rem',
-                            borderRadius: '4px',
-                            fontWeight: '600',
-                          }}>
-                            CRITICAL
-                          </span>
-                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <span>{task.task}</span>
+                          {task.criticalPath && (
+                            <span style={{
+                              padding: '0.25rem 0.5rem',
+                              background: theme.accentRed,
+                              color: '#fff',
+                              fontSize: '0.75rem',
+                              borderRadius: '4px',
+                              fontWeight: '600',
+                            }}>
+                              CRITICAL
+                            </span>
+                          )}
+                          {task.assignedTo && (() => {
+                            const collab = (projectMeta.collaborators || []).find(c => c.id === task.assignedTo);
+                            if (!collab) return null;
+                            return (
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.35rem',
+                                  padding: '0.25rem 0.6rem',
+                                  background: collab.color || theme.accentBlue,
+                                  color: '#fff',
+                                  fontSize: '0.75rem',
+                                  borderRadius: '12px',
+                                  fontWeight: '600',
+                                }}
+                                title={`Assigned to ${collab.name}`}
+                              >
+                                <span style={{ fontSize: '0.7rem' }}>{collab.initials}</span>
+                                <span>{collab.name}</span>
+                              </span>
+                            );
+                          })()}
+                        </div>
                       </td>
                       <td style={{ padding: '1rem' }}>
                         <span style={{
@@ -869,9 +930,14 @@ function App() {
           setTaskToEdit(null);
         }}
         onUpdateTask={handleUpdateTask}
+        onUpdateTaskState={(taskId: string, state: any) => {
+          setTaskStates((prev: any) => ({ ...prev, [taskId]: state }));
+        }}
         task={taskToEdit}
+        taskState={taskToEdit ? taskStates[taskToEdit.id] || {} : null}
         phases={phases}
         categories={categories}
+        collaborators={projectMeta.collaborators || []}
       />
 
       <ProjectInfoModal
@@ -913,6 +979,15 @@ function App() {
         projectMeta={projectMeta}
         phases={phases}
         phaseColors={phaseColors}
+      />
+
+      <CollaboratorManagementModal
+        show={showCollaboratorModal}
+        onClose={() => setShowCollaboratorModal(false)}
+        collaborators={projectMeta.collaborators || []}
+        onUpdateCollaborators={(collaborators: Collaborator[]) => {
+          setProjectMeta({ ...projectMeta, collaborators });
+        }}
       />
 
       {/* Footer */}
