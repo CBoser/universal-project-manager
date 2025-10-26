@@ -39,6 +39,7 @@ function App() {
   const {
     tasks,
     taskStates,
+    setTaskStates,
     addTask,
     updateTask,
     deleteTask,
@@ -869,9 +870,14 @@ function App() {
           setTaskToEdit(null);
         }}
         onUpdateTask={handleUpdateTask}
+        onUpdateTaskState={(taskId: string, state: any) => {
+          setTaskStates((prev: any) => ({ ...prev, [taskId]: state }));
+        }}
         task={taskToEdit}
+        taskState={taskToEdit ? taskStates[taskToEdit.id] || {} : null}
         phases={phases}
         categories={categories}
+        collaborators={projectMeta.collaborators || []}
       />
 
       <ProjectInfoModal
