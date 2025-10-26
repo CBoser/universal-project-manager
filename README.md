@@ -66,15 +66,27 @@ Create a `.env` file in the root directory:
 ```env
 VITE_ANTHROPIC_API_KEY=your_api_key_here
 VITE_USE_MOCK_AI=false
+VITE_BACKEND_URL=http://localhost:3001
 ```
 
-4. **Start the development server**
+4. **Start the application (requires 2 terminals)**
+
+**Terminal 1 - Backend Server:**
+```bash
+npm run server
+```
+This starts the backend API server on port 3001.
+
+**Terminal 2 - Frontend:**
 ```bash
 npm run dev
 ```
+This starts the frontend on port 5173.
 
 5. **Open in browser**
 Navigate to `http://localhost:5173`
+
+> **Note**: You MUST run both servers. The backend handles AI API calls securely (the Anthropic API cannot be called directly from the browser due to CORS restrictions).
 
 ### First Time Setup
 

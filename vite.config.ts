@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => {
     define: {
       'import.meta.env.VITE_ANTHROPIC_API_KEY': JSON.stringify(env.VITE_ANTHROPIC_API_KEY),
       'import.meta.env.VITE_USE_MOCK_AI': JSON.stringify(env.VITE_USE_MOCK_AI),
+      'import.meta.env.VITE_BACKEND_URL': JSON.stringify(env.VITE_BACKEND_URL),
       'import.meta.env.VITE_EXPORT_API_URL': JSON.stringify(env.VITE_EXPORT_API_URL),
     },
   }

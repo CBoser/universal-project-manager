@@ -2,7 +2,7 @@
 // Universal Project Manager - AI Analysis Modal
 // ============================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { theme } from '../../config/theme';
 import Modal from '../Modal';
 import { aiService } from '../../services/aiService';
@@ -36,9 +36,16 @@ export default function AIAnalysisModal({
   const [budget, setBudget] = useState('');
   const [timeline, setTimeline] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [hasAPIKey, setHasAPIKey] = useState(false);
 
   const projectTypes = getAvailableProjectTypes();
-  const hasAPIKey = aiService.isAvailable();
+
+  // Check API availability when modal is shown
+  useEffect(() => {
+    if (show) {
+      aiService.isAvailable().then(setHasAPIKey);
+    }
+  }, [show]);
 
   const handleAnalyze = async () => {
     if (!description.trim()) {
