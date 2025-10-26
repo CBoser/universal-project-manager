@@ -2,7 +2,6 @@
 // Universal Project Manager - AI Service
 // ============================================
 
-import Anthropic from '@anthropic-ai/sdk';
 import type {
   AIAnalysisRequest,
   AIAnalysisResponse,
@@ -13,16 +12,14 @@ import type {
 } from '../types';
 import { EXPERIENCE_MULTIPLIERS, AI_CONFIG } from '../config/constants';
 
-const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || '';
+// Backend API URL
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_AI === 'true';
 
 // Debug logging
 console.log('🔍 AI Service Debug:');
-console.log('  VITE_ANTHROPIC_API_KEY:', import.meta.env.VITE_ANTHROPIC_API_KEY ? `${import.meta.env.VITE_ANTHROPIC_API_KEY.substring(0, 20)}...` : 'NOT SET');
-console.log('  VITE_USE_MOCK_AI:', import.meta.env.VITE_USE_MOCK_AI);
-console.log('  API_KEY set:', !!API_KEY);
+console.log('  Backend URL:', BACKEND_URL);
 console.log('  USE_MOCK:', USE_MOCK);
-console.log('  isAvailable would return:', !USE_MOCK && !!API_KEY);
 
 /**
  * Real AI service using Anthropic Claude
@@ -34,7 +31,7 @@ export const aiService = {
   async analyzeProjectAndGenerateTasks(
     request: AIAnalysisRequest
   ): Promise<AIAnalysisResponse> {
-    if (USE_MOCK || !API_KEY) {
+    if (USE_MOCK) {
       return mockAIService.analyzeProjectAndGenerateTasks(request);
     }
 
@@ -45,59 +42,57 @@ export const aiService = {
     console.log('📊 Estimated tokens:', Math.ceil(prompt.length / 4));
 
     try {
-      const anthropic = new Anthropic({
-        apiKey: API_KEY,
-        timeout: AI_CONFIG.timeout, // 2 minute timeout for long descriptions
+      console.log('🚀 Sending request to backend API...');
+
+      const response = await fetch(`${BACKEND_URL}/api/ai/analyze`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          model: AI_CONFIG.model,
+          maxTokens: AI_CONFIG.maxTokens,
+          timeout: AI_CONFIG.timeout,
+        }),
       });
 
-      console.log('🚀 Sending request to Claude API...');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
 
-      const response = await anthropic.messages.create({
-        model: AI_CONFIG.model,
-        max_tokens: AI_CONFIG.maxTokens,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-      });
-
-      console.log('✅ Received response from Claude API');
-
-      const content = response.content[0].type === 'text' ? response.content[0].text : '';
+      const data = await response.json();
+      console.log('✅ Received response from backend API');
 
       // Parse the JSON response from Claude
-      const analysisResult = parseAnalysisResponse(content);
+      const analysisResult = parseAnalysisResponse(data.content);
 
       // Adjust task estimates based on experience level
       return adjustForExperience(analysisResult, request.experienceLevel);
     } catch (error) {
-      console.error('❌ Error calling Claude API:', error);
+      console.error('❌ Error calling backend API:', error);
 
       // Log more details about the error
       if (error instanceof Error) {
         console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-      }
-
-      // Check if it's an API error with more details
-      if (typeof error === 'object' && error !== null) {
-        console.error('Full error object:', JSON.stringify(error, null, 2));
       }
 
       // Provide specific error messages based on error type
       if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          throw new Error('Cannot connect to backend server. Make sure the backend is running on port 3001.');
+        }
         if (error.message.includes('timeout') || error.message.includes('timed out')) {
           throw new Error('Request timed out. Your project description may be very long. Try shortening it or try again.');
         }
-        if (error.message.includes('rate_limit')) {
+        if (error.message.includes('rate_limit') || error.message.includes('429')) {
           throw new Error('API rate limit reached. Please wait a moment and try again.');
         }
-        if (error.message.includes('authentication') || error.message.includes('401')) {
+        if (error.message.includes('Invalid API key') || error.message.includes('401')) {
           throw new Error('Authentication failed. Please check your API key in .env file.');
         }
-        if (error.message.includes('overloaded') || error.message.includes('529')) {
+        if (error.message.includes('overloaded') || error.message.includes('529') || error.message.includes('503')) {
           throw new Error('Claude API is temporarily overloaded. Please try again in a moment.');
         }
       }
@@ -114,32 +109,32 @@ export const aiService = {
     tasks: Task[],
     taskStates: { [key: string]: TaskState }
   ): Promise<AIReport> {
-    if (USE_MOCK || !API_KEY) {
+    if (USE_MOCK) {
       return mockAIService.generateProgressReport(projectMeta, tasks, taskStates);
     }
 
     const prompt = buildProgressReportPrompt(projectMeta, tasks, taskStates);
 
     try {
-      const anthropic = new Anthropic({
-        apiKey: API_KEY,
-        timeout: AI_CONFIG.timeout,
+      const response = await fetch(`${BACKEND_URL}/api/ai/report`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          model: AI_CONFIG.model,
+          maxTokens: 5000,
+        }),
       });
 
-      const response = await anthropic.messages.create({
-        model: AI_CONFIG.model,
-        max_tokens: 5000, // Increased for comprehensive reports
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
 
-      const content = response.content[0].type === 'text' ? response.content[0].text : '';
-
-      return parseProgressReport(content, projectMeta.name);
+      const data = await response.json();
+      return parseProgressReport(data.content, projectMeta.name);
     } catch (error) {
       console.error('Error generating AI report:', error);
       throw new Error('Failed to generate progress report.');
@@ -149,8 +144,19 @@ export const aiService = {
   /**
    * Check if AI service is available
    */
-  isAvailable(): boolean {
-    return !USE_MOCK && !!API_KEY;
+  async isAvailable(): Promise<boolean> {
+    if (USE_MOCK) {
+      return false;
+    }
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/ai/available`);
+      const data = await response.json();
+      return data.available;
+    } catch (error) {
+      console.error('Error checking AI availability:', error);
+      return false;
+    }
   },
 };
 
