@@ -45,7 +45,12 @@ export const aiService = {
     console.log('📊 Estimated tokens:', Math.ceil(prompt.length / 4));
 
     try {
-      const anthropic = new Anthropic({ apiKey: API_KEY });
+      const anthropic = new Anthropic({
+        apiKey: API_KEY,
+        timeout: AI_CONFIG.timeout, // 2 minute timeout for long descriptions
+      });
+
+      console.log('🚀 Sending request to Claude API...');
 
       const response = await anthropic.messages.create({
         model: AI_CONFIG.model,
@@ -57,6 +62,8 @@ export const aiService = {
           },
         ],
       });
+
+      console.log('✅ Received response from Claude API');
 
       const content = response.content[0].type === 'text' ? response.content[0].text : '';
 
@@ -79,7 +86,23 @@ export const aiService = {
         console.error('Full error object:', JSON.stringify(error, null, 2));
       }
 
-      throw new Error('Failed to analyze project. Please check your API key and try again.');
+      // Provide specific error messages based on error type
+      if (error instanceof Error) {
+        if (error.message.includes('timeout') || error.message.includes('timed out')) {
+          throw new Error('Request timed out. Your project description may be very long. Try shortening it or try again.');
+        }
+        if (error.message.includes('rate_limit')) {
+          throw new Error('API rate limit reached. Please wait a moment and try again.');
+        }
+        if (error.message.includes('authentication') || error.message.includes('401')) {
+          throw new Error('Authentication failed. Please check your API key in .env file.');
+        }
+        if (error.message.includes('overloaded') || error.message.includes('529')) {
+          throw new Error('Claude API is temporarily overloaded. Please try again in a moment.');
+        }
+      }
+
+      throw new Error('Failed to analyze project. Please try again or shorten your description.');
     }
   },
 
@@ -98,11 +121,14 @@ export const aiService = {
     const prompt = buildProgressReportPrompt(projectMeta, tasks, taskStates);
 
     try {
-      const anthropic = new Anthropic({ apiKey: API_KEY });
+      const anthropic = new Anthropic({
+        apiKey: API_KEY,
+        timeout: AI_CONFIG.timeout,
+      });
 
       const response = await anthropic.messages.create({
         model: AI_CONFIG.model,
-        max_tokens: 3000,
+        max_tokens: 5000, // Increased for comprehensive reports
         messages: [
           {
             role: 'user',
@@ -132,61 +158,37 @@ export const aiService = {
  * Build prompt for project analysis
  */
 function buildProjectAnalysisPrompt(request: AIAnalysisRequest): string {
-  return `You are an expert project manager. Analyze this project and provide a comprehensive breakdown.
+  const optionalFields = [
+    request.budget ? `Budget: $${request.budget}` : null,
+    request.timeline ? `Timeline: ${request.timeline}` : null,
+    request.teamSize ? `Team Size: ${request.teamSize}` : null,
+  ].filter(Boolean).join('\n');
 
-PROJECT DETAILS:
-- Description: ${request.projectDescription}
-- Type: ${request.projectType}
-- Experience Level: ${request.experienceLevel}
-${request.budget ? `- Budget: $${request.budget}` : ''}
-${request.timeline ? `- Timeline: ${request.timeline}` : ''}
-${request.teamSize ? `- Team Size: ${request.teamSize}` : ''}
+  return `You are an expert project manager analyzing a ${request.projectType} project for someone with ${request.experienceLevel} experience level.
 
-Please provide a detailed analysis in JSON format with the following structure:
+PROJECT DESCRIPTION:
+${request.projectDescription}
+
+${optionalFields ? `CONSTRAINTS:\n${optionalFields}\n` : ''}
+Analyze this project and create a comprehensive breakdown. Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
+
 {
-  "suggestedTasks": [
-    {
-      "task": "Task description",
-      "phase": "phase_id",
-      "phaseTitle": "Phase Name",
-      "baseEstHours": 10,
-      "category": "Category name",
-      "dependencies": ["task_id_1"],
-      "criticalPath": true/false
-    }
-  ],
-  "suggestedPhases": [
-    {
-      "phaseId": "phase1",
-      "phaseTitle": "Phase Name",
-      "description": "Phase description",
-      "color": "#00A3FF",
-      "typicalDuration": 14
-    }
-  ],
-  "estimatedTimeline": "X weeks/months",
-  "riskFactors": [
-    {
-      "category": "Risk category",
-      "description": "Risk description",
-      "severity": "low/medium/high",
-      "mitigation": "Mitigation strategy"
-    }
-  ],
-  "recommendations": [
-    "Recommendation 1",
-    "Recommendation 2"
-  ],
+  "suggestedTasks": [{"task": "string", "phase": "phase_id", "phaseTitle": "string", "baseEstHours": number, "category": "string", "dependencies": ["id"], "criticalPath": boolean}],
+  "suggestedPhases": [{"phaseId": "id", "phaseTitle": "string", "description": "string", "color": "#hex", "typicalDuration": number}],
+  "estimatedTimeline": "string",
+  "riskFactors": [{"category": "string", "description": "string", "severity": "low|medium|high", "mitigation": "string"}],
+  "recommendations": ["string"],
   "confidence": 0.85
 }
 
-IMPORTANT:
-- Include ALL typical phases for this project type
-- Provide comprehensive task breakdown with realistic time estimates
-- Consider the experience level when suggesting complexity
-- Include task dependencies where appropriate
-- Mark critical path items
-- Provide actionable recommendations`;
+Requirements:
+- Create ALL phases typical for this project type
+- Break down into specific, actionable tasks with realistic hour estimates
+- Adjust complexity for ${request.experienceLevel} experience
+- Mark critical path tasks
+- Include dependencies where logical
+- Provide 3-5 key risk factors
+- Give 5-8 actionable recommendations`;
 }
 
 /**
@@ -268,13 +270,29 @@ Please provide a comprehensive analysis in JSON format:
  */
 function parseAnalysisResponse(content: string): AIAnalysisResponse {
   try {
-    // Extract JSON from response
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    // Remove markdown code blocks if present
+    let cleanedContent = content.trim();
+    cleanedContent = cleanedContent.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '');
+
+    // Extract JSON from response - find outermost braces
+    const firstBrace = cleanedContent.indexOf('{');
+    const lastBrace = cleanedContent.lastIndexOf('}');
+
+    if (firstBrace === -1 || lastBrace === -1) {
+      console.error('Response content:', content);
       throw new Error('No JSON found in response');
     }
 
-    const parsed = JSON.parse(jsonMatch[0]);
+    const jsonStr = cleanedContent.substring(firstBrace, lastBrace + 1);
+    const parsed = JSON.parse(jsonStr);
+
+    // Validate required fields
+    if (!parsed.suggestedTasks || !Array.isArray(parsed.suggestedTasks)) {
+      throw new Error('Invalid response: missing suggestedTasks array');
+    }
+    if (!parsed.suggestedPhases || !Array.isArray(parsed.suggestedPhases)) {
+      throw new Error('Invalid response: missing suggestedPhases array');
+    }
 
     // Add IDs to tasks
     parsed.suggestedTasks = parsed.suggestedTasks.map((task: any, index: number) => ({
@@ -284,10 +302,13 @@ function parseAnalysisResponse(content: string): AIAnalysisResponse {
       aiGenerated: true,
     }));
 
+    console.log(`✅ Successfully parsed ${parsed.suggestedTasks.length} tasks and ${parsed.suggestedPhases.length} phases`);
+
     return parsed;
   } catch (error) {
-    console.error('Error parsing AI response:', error);
-    throw new Error('Failed to parse AI analysis response');
+    console.error('❌ Error parsing AI response:', error);
+    console.error('Response content:', content.substring(0, 500) + '...');
+    throw new Error('Failed to parse AI analysis response. The AI may have returned an invalid format.');
   }
 }
 

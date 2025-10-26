@@ -88,6 +88,7 @@ export const STORAGE_KEY = 'universal_project_data';
  */
 export const AI_CONFIG = {
   model: 'claude-sonnet-4-20250514',
-  maxTokens: 4000,
+  maxTokens: 8000, // Increased for complex projects with detailed descriptions
   temperature: 0.7,
+  timeout: 120000, // 2 minutes timeout for long descriptions
 };
