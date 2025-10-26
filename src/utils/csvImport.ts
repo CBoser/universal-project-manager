@@ -2,7 +2,7 @@
 // Universal Project Manager - CSV Import Utility
 // ============================================
 
-import type { Task } from '../types';
+import type { Task, ProjectMeta } from '../types';
 
 /**
  * Detect delimiter (comma or tab)
@@ -24,13 +24,84 @@ function detectDelimiter(csvText: string): string {
 }
 
 /**
- * Parse CSV file and convert to tasks
+ * Parse project metadata from CSV header
  */
-export function parseCSV(csvText: string): Task[] {
+function parseMetadata(lines: string[]): Partial<ProjectMeta> {
+  const metadata: Partial<ProjectMeta> = {};
+
+  for (const line of lines) {
+    // Stop at blank lines or section headers
+    if (!line.trim() || line.startsWith('SUMMARY') || line.startsWith('TASK')) break;
+
+    // Parse key-value pairs
+    const colonIndex = line.indexOf(':');
+    if (colonIndex > 0) {
+      const key = line.substring(0, colonIndex).trim();
+      const value = line.substring(colonIndex + 1).trim();
+
+      switch (key.toLowerCase()) {
+        case 'description':
+          metadata.description = value;
+          break;
+        case 'initial prompt':
+          metadata.initialPrompt = value;
+          break;
+        case 'project type':
+          metadata.projectType = value as any;
+          break;
+        case 'experience level':
+          metadata.experienceLevel = value as any;
+          break;
+        case 'project lead':
+          if (value && value !== 'Not specified') metadata.lead = value;
+          break;
+        case 'status':
+          metadata.status = value as any;
+          break;
+        case 'start date':
+          metadata.startDate = value;
+          break;
+        case 'target end date':
+          metadata.targetEndDate = value;
+          break;
+        case 'budget':
+          const budgetMatch = value.match(/[\d,]+/);
+          if (budgetMatch) {
+            metadata.budget = parseFloat(budgetMatch[0].replace(/,/g, ''));
+          }
+          break;
+      }
+    }
+
+    // Extract project name from title line
+    if (line.startsWith('#') || line.includes('Project Progress Report')) {
+      const nameMatch = line.match(/^#?\s*(.+?)\s*-\s*Project/);
+      if (nameMatch) {
+        metadata.name = nameMatch[1].trim();
+      }
+    }
+  }
+
+  return metadata;
+}
+
+export interface CSVImportResult {
+  tasks: Task[];
+  metadata: Partial<ProjectMeta>;
+}
+
+/**
+ * Parse CSV file and convert to tasks with metadata
+ */
+export function parseCSV(csvText: string): CSVImportResult {
   // Remove BOM (Byte Order Mark) if present
   const cleanText = csvText.replace(/^\uFEFF/, '');
   const lines = cleanText.split('\n').map(line => line.trim());
   const tasks: Task[] = [];
+
+  // Parse metadata from header
+  const metadata = parseMetadata(lines);
+  console.log('Parsed metadata:', metadata);
 
   // Detect delimiter (comma or tab)
   const delimiter = detectDelimiter(cleanText);
@@ -116,7 +187,7 @@ export function parseCSV(csvText: string): Task[] {
   }
 
   console.log(`Imported ${tasks.length} tasks`);
-  return tasks;
+  return { tasks, metadata };
 }
 
 /**

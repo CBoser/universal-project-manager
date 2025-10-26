@@ -34,6 +34,7 @@ export type TaskStatus = 'pending' | 'in-progress' | 'complete' | 'blocked' | 'o
 export interface ProjectMeta {
   name: string;
   description?: string;
+  initialPrompt?: string;              // The original AI prompt used to create the project
   projectType: ProjectType;
   experienceLevel: ExperienceLevel;
   lead?: string;

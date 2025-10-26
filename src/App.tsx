@@ -177,6 +177,7 @@ function App() {
         projectType: request.projectType,
         experienceLevel: request.experienceLevel,
         description: request.projectDescription,
+        initialPrompt: request.projectDescription, // Store the original AI prompt
         name: request.projectDescription.substring(0, 50) + (request.projectDescription.length > 50 ? '...' : ''),
       }));
 
@@ -187,12 +188,25 @@ function App() {
     }
   };
 
-  const handleImport = (newTasks: Task[], _newPhases: any, newPhaseColors: any) => {
+  const handleImport = (newTasks: Task[], _newPhases: any, newPhaseColors: any, metadata?: Partial<ProjectMeta>) => {
     // Add all imported tasks
     newTasks.forEach(task => addTask(task));
 
     // Merge phase colors
     setPhaseColors({ ...phaseColors, ...newPhaseColors });
+
+    // Update project metadata if provided
+    if (metadata && Object.keys(metadata).length > 0) {
+      setProjectMeta(prev => ({
+        ...prev,
+        ...metadata,
+        // Preserve existing collaborators if not in import
+        collaborators: metadata.collaborators || prev.collaborators,
+      }));
+
+      const fieldsUpdated = Object.keys(metadata).filter(k => metadata[k as keyof ProjectMeta] !== undefined);
+      console.log('Updated project metadata fields:', fieldsUpdated);
+    }
   };
 
   const handleExportCSV = () => {

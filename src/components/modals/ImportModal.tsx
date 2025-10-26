@@ -6,12 +6,12 @@ import { useState, useRef } from 'react';
 import { theme } from '../../config/theme';
 import Modal from '../Modal';
 import { parseCSV, validateCSV, readFileAsText } from '../../utils/csvImport';
-import type { Task } from '../../types';
+import type { Task, ProjectMeta } from '../../types';
 
 interface ImportModalProps {
   show: boolean;
   onClose: () => void;
-  onImport: (tasks: Task[], newPhases: any, newPhaseColors: any) => void;
+  onImport: (tasks: Task[], newPhases: any, newPhaseColors: any, metadata?: Partial<ProjectMeta>) => void;
   existingPhaseColors: { [key: string]: string };
 }
 
@@ -53,7 +53,7 @@ export default function ImportModal({ show, onClose, onImport, existingPhaseColo
       }
 
       // Parse CSV
-      const newTasks = parseCSV(importData);
+      const { tasks: newTasks, metadata } = parseCSV(importData);
 
       if (newTasks.length === 0) {
         alert('No valid tasks found in CSV');
@@ -72,8 +72,8 @@ export default function ImportModal({ show, onClose, onImport, existingPhaseColo
         }
       });
 
-      // Call onImport with the parsed data
-      onImport(newTasks, newPhases, newPhaseColors);
+      // Call onImport with the parsed data including metadata
+      onImport(newTasks, newPhases, newPhaseColors, metadata);
 
       alert(`Successfully imported ${newTasks.length} tasks!`);
       setImportData('');
