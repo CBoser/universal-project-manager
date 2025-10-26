@@ -15,6 +15,7 @@ export const theme = {
 
   // Brand colors
   brandOrange: '#ff7b00',
+  brandNavy: '#103A56',
   accentBlue: '#00A3FF',
   accentTeal: '#00d4aa',
   accentGreen: '#4caf50',
