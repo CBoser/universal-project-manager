@@ -16,10 +16,16 @@ import { EXPERIENCE_MULTIPLIERS, AI_CONFIG } from '../config/constants';
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_AI === 'true';
 
+// Get API key from localStorage or environment
+function getApiKey(): string | undefined {
+  return localStorage.getItem('anthropic_api_key') || undefined;
+}
+
 // Debug logging
 console.log('🔍 AI Service Debug:');
 console.log('  Backend URL:', BACKEND_URL);
 console.log('  USE_MOCK:', USE_MOCK);
+console.log('  Custom API key set:', !!getApiKey());
 
 /**
  * Real AI service using Anthropic Claude
@@ -54,6 +60,7 @@ export const aiService = {
           model: AI_CONFIG.model,
           maxTokens: AI_CONFIG.maxTokens,
           timeout: AI_CONFIG.timeout,
+          apiKey: getApiKey(), // Send custom API key if set in localStorage
         }),
       });
 
@@ -125,6 +132,7 @@ export const aiService = {
           prompt,
           model: AI_CONFIG.model,
           maxTokens: 5000,
+          apiKey: getApiKey(), // Send custom API key if set in localStorage
         }),
       });
 
