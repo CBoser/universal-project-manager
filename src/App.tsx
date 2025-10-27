@@ -21,6 +21,7 @@ import ReportsHistoryModal, { type ProgressSnapshot } from './components/modals/
 import AnalyticsReportsModal from './components/modals/AnalyticsReportsModal';
 import CollaboratorManagementModal from './components/modals/CollaboratorManagementModal';
 import VersionManagementModal from './components/modals/VersionManagementModal';
+import SettingsModal from './components/modals/SettingsModal';
 import DevNotes from './components/dev/DevNotes';
 import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator } from './types';
 
@@ -67,6 +68,7 @@ function App() {
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [showCollaboratorModal, setShowCollaboratorModal] = useState(false);
   const [showVersionModal, setShowVersionModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // Autosave states
   const [lastSaved, setLastSaved] = useState<string | null>(savedData?.savedAt || null);
@@ -477,6 +479,21 @@ function App() {
               fontWeight: '600',
             }}>
             💾 Save Now
+          </button>
+
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            style={{
+              padding: '0.25rem 0.75rem',
+              fontSize: '0.85rem',
+              background: '#607D8B',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: '600',
+            }}>
+            ⚙️ Settings
           </button>
         </div>
       </header>
@@ -1141,6 +1158,11 @@ function App() {
           projectMeta,
         }}
         onRestore={handleRestoreVersion}
+      />
+
+      <SettingsModal
+        show={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
       />
 
       {/* Footer */}

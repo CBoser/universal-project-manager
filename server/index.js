@@ -16,10 +16,13 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // Support large project descriptions
 
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.VITE_ANTHROPIC_API_KEY,
-});
+// Get Anthropic client with API key (from env or request)
+function getAnthropicClient(customApiKey) {
+  const apiKey = customApiKey || process.env.VITE_ANTHROPIC_API_KEY;
+  return new Anthropic({
+    apiKey: apiKey,
+  });
+}
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -36,7 +39,7 @@ app.get('/api/ai/available', (req, res) => {
 // Analyze project endpoint
 app.post('/api/ai/analyze', async (req, res) => {
   try {
-    const { prompt, model, maxTokens, timeout } = req.body;
+    const { prompt, model, maxTokens, timeout, apiKey } = req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
@@ -46,6 +49,9 @@ app.post('/api/ai/analyze', async (req, res) => {
     console.log('  Prompt length:', prompt.length, 'characters');
     console.log('  Model:', model);
     console.log('  Max tokens:', maxTokens);
+    console.log('  Using custom API key:', apiKey ? 'Yes' : 'No (using .env)');
+
+    const anthropic = getAnthropicClient(apiKey);
 
     const response = await anthropic.messages.create({
       model: model || 'claude-sonnet-4-20250514',
@@ -86,13 +92,16 @@ app.post('/api/ai/analyze', async (req, res) => {
 // Generate progress report endpoint
 app.post('/api/ai/report', async (req, res) => {
   try {
-    const { prompt, model, maxTokens } = req.body;
+    const { prompt, model, maxTokens, apiKey } = req.body;
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
     console.log('📊 Generating progress report');
+    console.log('  Using custom API key:', apiKey ? 'Yes' : 'No (using .env)');
+
+    const anthropic = getAnthropicClient(apiKey);
 
     const response = await anthropic.messages.create({
       model: model || 'claude-sonnet-4-20250514',
@@ -112,8 +121,53 @@ app.post('/api/ai/report', async (req, res) => {
     res.json({ content });
   } catch (error) {
     console.error('❌ Error generating report:', error);
+
+    if (error.status === 401) {
+      return res.status(401).json({ error: 'Invalid API key' });
+    }
+
     res.status(500).json({
       error: error.message || 'Failed to generate report'
+    });
+  }
+});
+
+// Test API key endpoint
+app.post('/api/ai/test', async (req, res) => {
+  try {
+    const { apiKey } = req.body;
+
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+
+    console.log('🧪 Testing API key...');
+
+    const anthropic = getAnthropicClient(apiKey);
+
+    // Make a minimal API call to test the key
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 50,
+      messages: [
+        {
+          role: 'user',
+          content: 'Hello, respond with "OK" if you can hear me.',
+        },
+      ],
+    });
+
+    console.log('✅ API key is valid');
+    res.json({ success: true, message: 'API key is valid' });
+  } catch (error) {
+    console.error('❌ API key test failed:', error);
+
+    if (error.status === 401) {
+      return res.status(401).json({ error: 'Invalid API key' });
+    }
+
+    res.status(500).json({
+      error: error.message || 'API key test failed'
     });
   }
 });
