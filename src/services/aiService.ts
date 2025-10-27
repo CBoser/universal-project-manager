@@ -301,12 +301,22 @@ function parseAnalysisResponse(content: string): AIAnalysisResponse {
     }
 
     // Add IDs to tasks
-    parsed.suggestedTasks = parsed.suggestedTasks.map((task: any, index: number) => ({
-      ...task,
-      id: `ai_${Date.now()}_${index}`,
-      adjustedEstHours: task.baseEstHours,
-      aiGenerated: true,
-    }));
+    parsed.suggestedTasks = parsed.suggestedTasks.map((task: any, index: number) => {
+      // Debug log each task to check for issues
+      console.log(`Task ${index}:`, {
+        task: task.task,
+        category: task.category,
+        phase: task.phase,
+        baseEstHours: task.baseEstHours
+      });
+
+      return {
+        ...task,
+        id: `ai_${Date.now()}_${index}`,
+        adjustedEstHours: task.baseEstHours,
+        aiGenerated: true,
+      };
+    });
 
     console.log(`✅ Successfully parsed ${parsed.suggestedTasks.length} tasks and ${parsed.suggestedPhases.length} phases`);
 
