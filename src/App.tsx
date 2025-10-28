@@ -25,6 +25,7 @@ import SettingsModal from './components/modals/SettingsModal';
 import NewProjectChoiceModal from './components/modals/NewProjectChoiceModal';
 import CreateBlankProjectModal from './components/modals/CreateBlankProjectModal';
 import ImportProjectModal from './components/modals/ImportProjectModal';
+import DropdownButton from './components/DropdownButton';
 import DevNotes from './components/dev/DevNotes';
 import Dashboard from './components/Dashboard';
 import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator, SavedProject } from './types';
@@ -86,6 +87,9 @@ function App() {
   const [showCollaboratorModal, setShowCollaboratorModal] = useState(false);
   const [showVersionModal, setShowVersionModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  // Dropdown state
+  const [openDropdown, setOpenDropdown] = useState<'tools' | 'data' | 'export' | null>(null);
 
   // Autosave states
   const [lastSaved, setLastSaved] = useState<string | null>(savedData?.savedAt || null);
@@ -332,6 +336,18 @@ function App() {
     localStorage.setItem('autoSaveInterval', autoSaveInterval.toString());
   }, [autoSaveInterval]);
 
+  // Click-outside handler to close dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openDropdown && !(event.target as Element).closest('.dropdown-container')) {
+        setOpenDropdown(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openDropdown]);
+
   const handleSave = (showAlert: boolean = true) => {
     setIsSaving(true);
 
@@ -503,6 +519,28 @@ function App() {
 
   const handleExportCSV = () => {
     exportToCSV(tasks, taskStates, projectMeta, stats);
+  };
+
+  const handleExportJSON = () => {
+    if (!currentProjectId) {
+      alert('No project loaded');
+      return;
+    }
+
+    const project = getProject(currentProjectId);
+    if (!project) {
+      alert('Project not found');
+      return;
+    }
+
+    const json = JSON.stringify(project, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${projectMeta.name || 'project'}_export.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleClearAll = () => {
@@ -864,239 +902,176 @@ function App() {
         </div>
       </header>
 
-      {/* Action Buttons */}
-      <div style={{
-        display: 'flex',
-        gap: '0.75rem',
-        flexWrap: 'wrap',
-        marginBottom: '2rem',
-      }}>
-        <button
-          onClick={() => setShowAIAnalysisModal(true)}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}>
-          🤖 AI Setup
-        </button>
-
-        <button
-          onClick={() => setShowProjectInfoModal(true)}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: theme.accentBlue,
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}>
-          ℹ️ Project Info
-        </button>
-
-        <button
-          onClick={() => setShowCollaboratorModal(true)}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: '#9C27B0',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}>
-          👥 Team
-        </button>
-
-        <button
-          onClick={() => setShowVersionModal(true)}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: '#FF9800',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}>
-          🔖 Versions
-        </button>
-
-        <button
-          onClick={() => setShowAddTaskModal(true)}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: theme.accentGreen,
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}>
-          ➕ Add Task
-        </button>
-
-        <button
-          onClick={() => setShowImportModal(true)}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: theme.accentBlue,
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}>
-          📥 Import
-        </button>
-
-        <button
-          onClick={() => setShowPhaseManagementModal(true)}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: theme.textSecondary,
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}>
-          📋 Phases
-        </button>
-
-        <button
-          onClick={() => setShowCategoryManagementModal(true)}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: theme.textSecondary,
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}>
-          🏷️ Categories
-        </button>
-
-        <button
-          onClick={() => handleSave()}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: theme.accentGreen,
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}>
-          💾 Save
-        </button>
-
-        <button
-          onClick={handleSaveSnapshot}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: theme.brandOrange,
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}>
-          📊 Snapshot
-        </button>
-
-        <button
-          onClick={() => setShowReportsHistoryModal(true)}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: theme.brandOrange,
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}>
-          📈 History
-        </button>
-
-        <button
-          onClick={() => setShowAnalyticsModal(true)}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: '#2196f3',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}>
-          📊 Analytics
-        </button>
-
-        <button
-          onClick={handleExportCSV}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: theme.accentBlue,
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}>
-          📊 Export
-        </button>
-
-        {moveHistory.length > 0 && (
+      {/* Action Buttons - Hybrid Layout */}
+      <div style={{ marginBottom: '2rem' }}>
+        {/* Row 1 - Primary Actions */}
+        <div style={{
+          display: 'flex',
+          gap: '10px',
+          marginBottom: '10px',
+          flexWrap: 'wrap',
+        }}>
           <button
-            onClick={handleUndoMove}
+            onClick={() => setShowAIAnalysisModal(true)}
             style={{
-              padding: '0.75rem 1.25rem',
-              background: theme.textSecondary,
+              height: '40px',
+              padding: '10px 20px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               color: '#fff',
               border: 'none',
               borderRadius: '6px',
               fontSize: '0.95rem',
-              fontWeight: '600',
+              fontWeight: '500',
               cursor: 'pointer',
-            }}>
-            ↩️ Undo Move
+              transition: 'filter 0.2s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)'; }}>
+            🤖 AI Setup
           </button>
-        )}
 
-        <button
-          onClick={handleClearAll}
-          style={{
-            padding: '0.75rem 1.25rem',
-            background: theme.accentRed,
-            color: '#fff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-          }}>
-          🗑️ Clear All
-        </button>
+          <button
+            onClick={() => setShowAddTaskModal(true)}
+            style={{
+              height: '40px',
+              padding: '10px 20px',
+              background: theme.accentGreen,
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '0.95rem',
+              fontWeight: '500',
+              cursor: 'pointer',
+              transition: 'filter 0.2s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)'; }}>
+            ➕ Add Task
+          </button>
+
+          <button
+            onClick={() => setShowImportModal(true)}
+            style={{
+              height: '40px',
+              padding: '10px 20px',
+              background: '#00ACC1',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '0.95rem',
+              fontWeight: '500',
+              cursor: 'pointer',
+              transition: 'filter 0.2s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)'; }}>
+            📥 Import
+          </button>
+
+          <button
+            onClick={() => setShowProjectInfoModal(true)}
+            style={{
+              height: '40px',
+              padding: '10px 20px',
+              background: theme.accentBlue,
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '0.95rem',
+              fontWeight: '500',
+              cursor: 'pointer',
+              transition: 'filter 0.2s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)'; }}>
+            ℹ️ Project Info
+          </button>
+        </div>
+
+        {/* Row 2 - Secondary Actions (Dropdowns) */}
+        <div style={{
+          display: 'flex',
+          gap: '10px',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+        }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <DropdownButton
+              label="🔧 Tools ▼"
+              isOpen={openDropdown === 'tools'}
+              onClick={() => setOpenDropdown(openDropdown === 'tools' ? null : 'tools')}
+              items={[
+                { icon: '👥', label: 'Manage Team', onClick: () => { setShowCollaboratorModal(true); setOpenDropdown(null); } },
+                { icon: '📊', label: 'Edit Phases', onClick: () => { setShowPhaseManagementModal(true); setOpenDropdown(null); } },
+                { icon: '🏷️', label: 'Edit Categories', onClick: () => { setShowCategoryManagementModal(true); setOpenDropdown(null); } },
+              ]}
+            />
+
+            <DropdownButton
+              label="📊 Data ▼"
+              isOpen={openDropdown === 'data'}
+              onClick={() => setOpenDropdown(openDropdown === 'data' ? null : 'data')}
+              items={[
+                { icon: '📸', label: 'Create Snapshot', onClick: () => { handleSaveSnapshot(); setOpenDropdown(null); } },
+                { icon: '🔄', label: 'View Versions', onClick: () => { setShowVersionModal(true); setOpenDropdown(null); } },
+                { icon: '📜', label: 'View History', onClick: () => { setShowReportsHistoryModal(true); setOpenDropdown(null); } },
+                { icon: '📊', label: 'View Analytics', onClick: () => { setShowAnalyticsModal(true); setOpenDropdown(null); } },
+              ]}
+            />
+
+            <DropdownButton
+              label="📤 Export ▼"
+              isOpen={openDropdown === 'export'}
+              onClick={() => setOpenDropdown(openDropdown === 'export' ? null : 'export')}
+              items={[
+                { icon: '📄', label: 'Export to CSV', onClick: () => { handleExportCSV(); setOpenDropdown(null); } },
+                { icon: '📋', label: 'Export to JSON', onClick: () => { handleExportJSON(); setOpenDropdown(null); } },
+              ]}
+            />
+
+            {moveHistory.length > 0 && (
+              <button
+                onClick={handleUndoMove}
+                style={{
+                  height: '40px',
+                  padding: '10px 20px',
+                  background: '#2a2a2a',
+                  color: '#e0e0e0',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '0.95rem',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s ease',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#3a3a3a'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#2a2a2a'; }}>
+                ↩️ Undo Move
+              </button>
+            )}
+          </div>
+
+          <button
+            onClick={handleClearAll}
+            style={{
+              height: '40px',
+              padding: '10px 20px',
+              background: '#d32f2f',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '0.95rem',
+              fontWeight: '500',
+              cursor: 'pointer',
+              marginLeft: 'auto',
+              transition: 'background 0.2s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = '#b71c1c'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = '#d32f2f'; }}>
+            🗑️ Clear All
+          </button>
+        </div>
       </div>
 
       {/* Project Info */}
