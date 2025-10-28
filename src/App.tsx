@@ -512,12 +512,13 @@ function App() {
     }
   };
 
-  const toggleTaskStatus = (taskId: string) => {
-    const currentStatus = taskStates[taskId]?.status || 'pending';
-    const statuses: TaskStatus[] = ['pending', 'in-progress', 'complete', 'blocked', 'on-hold'];
-    const currentIndex = statuses.indexOf(currentStatus);
-    const nextStatus = statuses[(currentIndex + 1) % statuses.length];
-    updateTaskState(taskId, 'status', nextStatus);
+  const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
+    updateTaskState(taskId, 'status', newStatus);
+  };
+
+  const handleCheckboxChange = (taskId: string, checked: boolean) => {
+    const newStatus: TaskStatus = checked ? 'complete' : 'pending';
+    updateTaskState(taskId, 'status', newStatus);
   };
 
   const handleEditTask = (task: Task) => {
@@ -1285,7 +1286,7 @@ function App() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: `2px solid ${theme.border}` }}>
-                  <th style={{ padding: '1rem', textAlign: 'left', color: theme.textMuted }}>Status</th>
+                  <th style={{ padding: '1rem', textAlign: 'center', color: theme.textMuted, width: '50px' }}>✓</th>
                   <th style={{ padding: '1rem', textAlign: 'left', color: theme.textMuted }}>Task</th>
                   <th style={{ padding: '1rem', textAlign: 'left', color: theme.textMuted }}>Phase</th>
                   <th style={{ padding: '1rem', textAlign: 'left', color: theme.textMuted }}>Category</th>
@@ -1311,22 +1312,19 @@ function App() {
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.background = theme.hover}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
-                      <td style={{ padding: '1rem' }}>
-                        <button
-                          onClick={() => toggleTaskStatus(task.id)}
+                      <td style={{ padding: '1rem', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={state.status === 'complete'}
+                          onChange={(e) => handleCheckboxChange(task.id, e.target.checked)}
+                          onClick={(e) => e.stopPropagation()}
                           style={{
-                            padding: '0.5rem 1rem',
-                            background: getStatusColor(state.status),
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontSize: '0.85rem',
+                            width: '20px',
+                            height: '20px',
                             cursor: 'pointer',
-                            fontWeight: '600',
-                            whiteSpace: 'nowrap',
-                          }}>
-                          {state.status || 'pending'}
-                        </button>
+                            accentColor: theme.accentGreen,
+                          }}
+                        />
                       </td>
                       <td style={{ padding: '1rem', color: theme.textPrimary }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -1387,7 +1385,28 @@ function App() {
                         {state.estHours || task.adjustedEstHours}h
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', alignItems: 'center' }}>
+                          <select
+                            value={state.status || 'pending'}
+                            onChange={(e) => handleStatusChange(task.id, e.target.value as TaskStatus)}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              padding: '0.5rem 0.75rem',
+                              background: getStatusColor(state.status),
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontSize: '0.85rem',
+                              cursor: 'pointer',
+                              fontWeight: '600',
+                              minWidth: '120px',
+                            }}>
+                            <option value="pending" style={{ background: theme.bgSecondary, color: theme.textPrimary }}>Pending</option>
+                            <option value="in-progress" style={{ background: theme.bgSecondary, color: theme.textPrimary }}>In Progress</option>
+                            <option value="complete" style={{ background: theme.bgSecondary, color: theme.textPrimary }}>Complete</option>
+                            <option value="blocked" style={{ background: theme.bgSecondary, color: theme.textPrimary }}>Blocked</option>
+                            <option value="on-hold" style={{ background: theme.bgSecondary, color: theme.textPrimary }}>On Hold</option>
+                          </select>
                           <button
                             onClick={() => handleEditTask(task)}
                             style={{
