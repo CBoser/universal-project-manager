@@ -23,7 +23,14 @@ import CollaboratorManagementModal from './components/modals/CollaboratorManagem
 import VersionManagementModal from './components/modals/VersionManagementModal';
 import SettingsModal from './components/modals/SettingsModal';
 import DevNotes from './components/dev/DevNotes';
-import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator } from './types';
+import Dashboard from './components/Dashboard';
+import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator, SavedProject } from './types';
+import {
+  getProject,
+  saveProject as saveProjectToStorage,
+  getCurrentProjectId,
+  setCurrentProjectId,
+} from './services/projectStorage';
 
 interface MoveHistory {
   taskId: string;
@@ -32,6 +39,10 @@ interface MoveHistory {
 }
 
 function App() {
+  // View state: 'dashboard' or 'project'
+  const [currentView, setCurrentView] = useState<'dashboard' | 'project'>('dashboard');
+  const [currentProjectId, setCurrentProjectIdState] = useState<string | null>(getCurrentProjectId());
+
   // Load saved data or use defaults
   const savedData = storageService.load();
 
@@ -115,6 +126,85 @@ function App() {
     phaseTaskCounts[task.phase] = (phaseTaskCounts[task.phase] || 0) + 1;
   });
 
+  // ==========================
+  // Multi-Project Functions
+  // ==========================
+
+  const saveCurrentProject = () => {
+    if (!currentProjectId) return;
+
+    const project: SavedProject = {
+      meta: projectMeta,
+      tasks,
+      taskStates,
+      phases: Object.keys(phases).map(phaseId => ({
+        phaseId,
+        phaseTitle: phases[phaseId],
+        description: '',
+        color: phaseColors[phaseId] || '#607D8B',
+        typicalDuration: 0,
+      })),
+    };
+
+    saveProjectToStorage(project);
+  };
+
+  const loadProject = (projectId: string) => {
+    const project = getProject(projectId);
+    if (!project) {
+      alert('Project not found');
+      return;
+    }
+
+    // Load project data into state
+    setProjectMeta(project.meta);
+    setTasks(project.tasks);
+    setTaskStates(project.taskStates);
+
+    // Load phase colors
+    const colors: { [key: string]: string } = {};
+    project.phases.forEach(phase => {
+      colors[phase.phaseId] = phase.color;
+    });
+    setPhaseColors(colors);
+
+    // Set current project and view
+    setCurrentProjectIdState(projectId);
+    setCurrentProjectId(projectId);
+    setCurrentView('project');
+  };
+
+  const handleOpenProject = (projectId: string) => {
+    // Save current project first if we're in a project
+    if (currentProjectId && currentView === 'project') {
+      saveCurrentProject();
+    }
+
+    // Load the selected project
+    loadProject(projectId);
+  };
+
+  const handleBackToDashboard = () => {
+    // Save current project before going back
+    if (currentProjectId) {
+      saveCurrentProject();
+    }
+
+    setCurrentView('dashboard');
+    setCurrentProjectId(null);
+    setCurrentProjectIdState(null);
+  };
+
+  const handleNewProject = () => {
+    // Save current project if any
+    if (currentProjectId && currentView === 'project') {
+      saveCurrentProject();
+    }
+
+    // Show the AI Analysis modal to create a new project
+    setShowAIAnalysisModal(true);
+  };
+
   // Auto-save at configured interval
   useEffect(() => {
     if (autoSaveInterval <= 0) return; // Autosave disabled
@@ -136,6 +226,8 @@ function App() {
 
     try {
       const now = new Date().toISOString();
+
+      // Save to legacy storage service for backwards compatibility
       storageService.save({
         tasks,
         taskStates,
@@ -145,6 +237,11 @@ function App() {
         progressSnapshots,
         savedAt: now,
       });
+
+      // Also save to new project storage if we're in a project
+      if (currentProjectId) {
+        saveCurrentProject();
+      }
 
       setLastSaved(now);
 
@@ -161,29 +258,51 @@ function App() {
       const service = useRealAI ? aiService : aiService; // Will use mock if no API key
       const result = await service.analyzeProjectAndGenerateTasks(request);
 
-      // Apply phases
-      const newPhaseColors = { ...phaseColors };
+      // Create new project metadata with generated ID
+      const newProjectId = `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const newProjectMeta: ProjectMeta = {
+        id: newProjectId,
+        name: request.projectDescription.slice(0, 50) + (request.projectDescription.length > 50 ? '...' : ''),
+        description: request.projectDescription,
+        initialPrompt: request.projectDescription,
+        projectType: request.projectType,
+        experienceLevel: request.experienceLevel,
+        budget: request.budget,
+        timeline: request.timeline,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        icon: '📋',
+      };
+
+      // Create phase colors from result
+      const newPhaseColors: { [key: string]: string } = {};
       result.suggestedPhases.forEach(phase => {
         newPhaseColors[phase.phaseId] = phase.color;
       });
+
+      // Create new project
+      const newProject: SavedProject = {
+        meta: newProjectMeta,
+        tasks: result.suggestedTasks,
+        taskStates: {},
+        phases: result.suggestedPhases,
+      };
+
+      // Save the new project
+      saveProjectToStorage(newProject);
+
+      // Load the new project into view
+      setProjectMeta(newProjectMeta);
+      setTasks(result.suggestedTasks);
+      setTaskStates({});
       setPhaseColors(newPhaseColors);
+      setCurrentProjectIdState(newProjectId);
+      setCurrentProjectId(newProjectId);
+      setCurrentView('project');
 
-      // Apply tasks
-      result.suggestedTasks.forEach(task => {
-        addTask(task);
-      });
-
-      // Update project meta
-      setProjectMeta(prev => ({
-        ...prev,
-        projectType: request.projectType,
-        experienceLevel: request.experienceLevel,
-        description: request.projectDescription,
-        initialPrompt: request.projectDescription, // Store the original AI prompt
-        name: request.projectDescription.substring(0, 50) + (request.projectDescription.length > 50 ? '...' : ''),
-      }));
-
-      alert(`Successfully generated ${result.suggestedTasks.length} tasks across ${result.suggestedPhases.length} phases!`);
+      setShowAIAnalysisModal(false);
+      alert(`Project created! Generated ${result.suggestedTasks.length} tasks across ${result.suggestedPhases.length} phases!`);
     } catch (error) {
       console.error('AI Analysis Error:', error);
       alert('Failed to analyze project. Please try again.');
@@ -393,6 +512,37 @@ function App() {
     return phaseColors[phaseId] || theme.accentBlue;
   };
 
+  // Conditional rendering: Dashboard vs Project View
+  if (currentView === 'dashboard') {
+    return (
+      <>
+        <DevNotes />
+        <div style={{
+          minHeight: '100vh',
+          background: theme.bgPrimary,
+          padding: '2rem',
+        }}>
+          <Dashboard
+            onOpenProject={handleOpenProject}
+            onNewProject={handleNewProject}
+          />
+        </div>
+
+        {/* Modals available from dashboard */}
+        <AIAnalysisModal
+          show={showAIAnalysisModal}
+          onClose={() => setShowAIAnalysisModal(false)}
+          onAnalysisComplete={handleAIAnalysis}
+        />
+
+        <SettingsModal
+          show={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <DevNotes />
@@ -401,18 +551,34 @@ function App() {
         background: theme.bgPrimary,
         padding: '2rem',
       }}>
-        {/* Header */}
+        {/* Header with back button */}
         <header style={{ marginBottom: '2rem' }}>
-        <h1 style={{
-          fontSize: '2.5rem',
-          marginBottom: '0.5rem',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
-        }}>
-          🚀 Universal Project Manager
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+          <button
+            onClick={handleBackToDashboard}
+            style={{
+              padding: '0.5rem 1rem',
+              background: theme.accentBlue,
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+              fontWeight: '600',
+            }}>
+            ← Back to Dashboard
+          </button>
+          <h1 style={{
+            fontSize: '2.5rem',
+            margin: 0,
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}>
+            {projectMeta.icon || '📋'} {projectMeta.name}
+          </h1>
+        </div>
         <p style={{ color: theme.textMuted, fontSize: '1.1rem', marginBottom: '0.5rem' }}>
           AI-powered project management for ANY type of project
         </p>
