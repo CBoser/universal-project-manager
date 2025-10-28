@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { theme } from '../../config/theme';
 import Modal from '../Modal';
 import { getAvailableProjectTypes } from '../../config/projectTemplates';
-import type { ProjectMeta, ProjectType, ExperienceLevel } from '../../types';
+import type { ProjectMeta, ProjectType, ExperienceLevel, ProjectStatus } from '../../types';
 
 interface ProjectInfoModalProps {
   show: boolean;
@@ -36,7 +36,7 @@ export default function ProjectInfoModal({
   const [lead, setLead] = useState('');
   const [projectType, setProjectType] = useState<ProjectType>('software_development');
   const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel>('intermediate');
-  const [status, setStatus] = useState<'planning' | 'in-progress' | 'on-hold' | 'completed'>('planning');
+  const [status, setStatus] = useState<ProjectStatus>('active');
   const [startDate, setStartDate] = useState('');
   const [targetEndDate, setTargetEndDate] = useState('');
   const [budget, setBudget] = useState('');
@@ -67,6 +67,7 @@ export default function ProjectInfoModal({
     }
 
     const updatedMeta: ProjectMeta = {
+      id: projectMeta.id, // Preserve the project ID
       name: name.trim(),
       projectType,
       experienceLevel,
@@ -79,6 +80,10 @@ export default function ProjectInfoModal({
       budget: budget ? parseFloat(budget) : undefined,
       timeline: timeline.trim() || undefined,
       collaborators: projectMeta.collaborators, // Preserve collaborators
+      icon: projectMeta.icon, // Preserve the icon
+      createdAt: projectMeta.createdAt, // Preserve creation date
+      updatedAt: new Date().toISOString(), // Update modification date
+      archived: projectMeta.archived, // Preserve archived status
     };
 
     onSave(updatedMeta);
@@ -158,13 +163,13 @@ export default function ProjectInfoModal({
           </label>
           <select
             value={status}
-            onChange={(e) => setStatus(e.target.value as any)}
+            onChange={(e) => setStatus(e.target.value as ProjectStatus)}
             style={inputStyle}
           >
-            <option value="planning">Planning</option>
-            <option value="in-progress">In Progress</option>
+            <option value="active">Active</option>
+            <option value="backlog">Backlog</option>
             <option value="on-hold">On Hold</option>
-            <option value="completed">Completed</option>
+            <option value="complete">Complete</option>
           </select>
         </div>
       </div>

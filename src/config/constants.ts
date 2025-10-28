@@ -8,12 +8,16 @@ import type { ProjectMeta, Task } from '../types';
  * Default project metadata
  */
 export const DEFAULT_PROJECT_META: ProjectMeta = {
+  id: `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
   name: 'New Project',
   description: 'Describe your project here...',
   projectType: 'custom',
   experienceLevel: 'intermediate',
   lead: 'Project Lead',
-  status: 'planning',
+  status: 'active',
+  icon: '📋',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
 };
 
 /**

@@ -29,16 +29,26 @@ export type ExperienceLevel = 'novice' | 'intermediate' | 'expert';
 export type TaskStatus = 'pending' | 'in-progress' | 'complete' | 'blocked' | 'on-hold';
 
 /**
+ * Project status types
+ */
+export type ProjectStatus = 'active' | 'backlog' | 'complete' | 'on-hold';
+
+/**
  * Project metadata
  */
 export interface ProjectMeta {
+  id: string;                          // Unique project identifier
   name: string;
   description?: string;
   initialPrompt?: string;              // The original AI prompt used to create the project
   projectType: ProjectType;
   experienceLevel: ExperienceLevel;
   lead?: string;
-  status: 'planning' | 'in-progress' | 'on-hold' | 'completed';
+  status: ProjectStatus;
+  icon?: string;                       // Emoji or icon for the project
+  archived?: boolean;                  // Is the project archived?
+  createdAt?: string;                  // When was the project created
+  updatedAt?: string;                  // Last modification date
   startDate?: string;
   targetEndDate?: string;
   budget?: number;
@@ -219,4 +229,14 @@ export interface MoveHistory {
   fromPhase: string;
   toPhase: string;
   timestamp: number;
+}
+
+/**
+ * Complete saved project with metadata, tasks, and task states
+ */
+export interface SavedProject {
+  meta: ProjectMeta;
+  tasks: Task[];
+  taskStates: { [taskId: string]: TaskState };
+  phases: Phase[];
 }
