@@ -10,7 +10,8 @@ interface NewProjectChoiceModalProps {
   onClose: () => void;
   onChooseAI: () => void;
   onChooseManual: () => void;
-  onChooseImport: () => void;
+  onChooseImportCSV: () => void;
+  onChooseImportJSON: () => void;
 }
 
 export default function NewProjectChoiceModal({
@@ -18,7 +19,8 @@ export default function NewProjectChoiceModal({
   onClose,
   onChooseAI,
   onChooseManual,
-  onChooseImport,
+  onChooseImportCSV,
+  onChooseImportJSON,
 }: NewProjectChoiceModalProps) {
   return (
     <Modal show={show} onClose={onClose} title="Create New Project" width="600px">
@@ -91,7 +93,7 @@ export default function NewProjectChoiceModal({
 
         {/* Import from CSV Option */}
         <button
-          onClick={onChooseImport}
+          onClick={onChooseImportCSV}
           style={{
             padding: '1.5rem',
             background: theme.bgSecondary,
@@ -111,12 +113,43 @@ export default function NewProjectChoiceModal({
             e.currentTarget.style.background = theme.bgSecondary;
           }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
-            <div style={{ fontSize: '2rem' }}>📥</div>
+            <div style={{ fontSize: '2rem' }}>📊</div>
             <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '600' }}>Import from CSV</h3>
           </div>
           <p style={{ color: theme.textMuted, fontSize: '0.95rem', margin: 0, paddingLeft: '3.5rem' }}>
-            Import a project from a CSV file with tasks, phases, and metadata. Great for migrating
-            existing projects or using templates.
+            Import tasks from a CSV file. Useful for creating projects from spreadsheets or
+            task lists exported from other tools.
+          </p>
+        </button>
+
+        {/* Import from JSON Option */}
+        <button
+          onClick={onChooseImportJSON}
+          style={{
+            padding: '1.5rem',
+            background: theme.bgSecondary,
+            border: `2px solid ${theme.border}`,
+            borderRadius: '12px',
+            cursor: 'pointer',
+            textAlign: 'left',
+            transition: 'all 0.2s ease',
+            color: theme.textPrimary,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = theme.accentPurple;
+            e.currentTarget.style.background = theme.hover;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = theme.border;
+            e.currentTarget.style.background = theme.bgSecondary;
+          }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+            <div style={{ fontSize: '2rem' }}>📥</div>
+            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '600' }}>Import from JSON</h3>
+          </div>
+          <p style={{ color: theme.textMuted, fontSize: '0.95rem', margin: 0, paddingLeft: '3.5rem' }}>
+            Import a complete project from a JSON export file. Includes all tasks, progress,
+            time logs, and collaborators. Perfect for project backups or sharing.
           </p>
         </button>
       </div>

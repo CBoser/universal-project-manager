@@ -24,6 +24,7 @@ import VersionManagementModal from './components/modals/VersionManagementModal';
 import SettingsModal from './components/modals/SettingsModal';
 import NewProjectChoiceModal from './components/modals/NewProjectChoiceModal';
 import CreateBlankProjectModal from './components/modals/CreateBlankProjectModal';
+import ImportProjectModal from './components/modals/ImportProjectModal';
 import DevNotes from './components/dev/DevNotes';
 import Dashboard from './components/Dashboard';
 import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator, SavedProject } from './types';
@@ -74,6 +75,7 @@ function App() {
   const [showCreateBlankProjectModal, setShowCreateBlankProjectModal] = useState(false);
   const [showAIAnalysisModal, setShowAIAnalysisModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showImportProjectModal, setShowImportProjectModal] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showEditTaskModal, setShowEditTaskModal] = useState(false);
   const [showProjectInfoModal, setShowProjectInfoModal] = useState(false);
@@ -222,6 +224,49 @@ function App() {
   const handleChooseImportCSV = () => {
     setShowNewProjectChoiceModal(false);
     setShowImportModal(true);
+  };
+
+  const handleChooseImportJSON = () => {
+    setShowNewProjectChoiceModal(false);
+    setShowImportProjectModal(true);
+  };
+
+  const handleImportProject = (project: SavedProject) => {
+    // Generate new ID to avoid conflicts
+    const newProjectId = `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Update project with new ID and timestamps
+    const newProject: SavedProject = {
+      ...project,
+      meta: {
+        ...project.meta,
+        id: newProjectId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    // Save the project
+    saveProjectToStorage(newProject);
+
+    // Load the project into view
+    setProjectMeta(newProject.meta);
+    setTasks(newProject.tasks);
+    setTaskStates(newProject.taskStates);
+
+    // Load phase colors
+    const colors: { [key: string]: string } = {};
+    newProject.phases.forEach(phase => {
+      colors[phase.phaseId] = phase.color;
+    });
+    setPhaseColors(colors);
+
+    setCurrentProjectIdState(newProjectId);
+    setCurrentProjectId(newProjectId);
+    setCurrentView('project');
+
+    setShowImportProjectModal(false);
+    alert(`Project "${newProject.meta.name}" imported successfully with ${newProject.tasks.length} tasks!`);
   };
 
   const handleCreateBlankProject = (projectData: {
@@ -467,12 +512,13 @@ function App() {
     }
   };
 
-  const toggleTaskStatus = (taskId: string) => {
-    const currentStatus = taskStates[taskId]?.status || 'pending';
-    const statuses: TaskStatus[] = ['pending', 'in-progress', 'complete', 'blocked', 'on-hold'];
-    const currentIndex = statuses.indexOf(currentStatus);
-    const nextStatus = statuses[(currentIndex + 1) % statuses.length];
-    updateTaskState(taskId, 'status', nextStatus);
+  const handleStatusChange = (taskId: string, newStatus: TaskStatus) => {
+    updateTaskState(taskId, 'status', newStatus);
+  };
+
+  const handleCheckboxChange = (taskId: string, checked: boolean) => {
+    const newStatus: TaskStatus = checked ? 'complete' : 'pending';
+    updateTaskState(taskId, 'status', newStatus);
   };
 
   const handleEditTask = (task: Task) => {
@@ -660,7 +706,8 @@ function App() {
           onClose={() => setShowNewProjectChoiceModal(false)}
           onChooseAI={handleChooseAISetup}
           onChooseManual={handleChooseManualProject}
-          onChooseImport={handleChooseImportCSV}
+          onChooseImportCSV={handleChooseImportCSV}
+          onChooseImportJSON={handleChooseImportJSON}
         />
 
         <CreateBlankProjectModal
@@ -680,6 +727,12 @@ function App() {
           onClose={() => setShowImportModal(false)}
           onImport={handleImport}
           existingPhaseColors={{}}
+        />
+
+        <ImportProjectModal
+          show={showImportProjectModal}
+          onClose={() => setShowImportProjectModal(false)}
+          onImport={handleImportProject}
         />
 
         <SettingsModal
@@ -1233,7 +1286,7 @@ function App() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: `2px solid ${theme.border}` }}>
-                  <th style={{ padding: '1rem', textAlign: 'left', color: theme.textMuted }}>Status</th>
+                  <th style={{ padding: '1rem', textAlign: 'center', color: theme.textMuted, width: '50px' }}>✓</th>
                   <th style={{ padding: '1rem', textAlign: 'left', color: theme.textMuted }}>Task</th>
                   <th style={{ padding: '1rem', textAlign: 'left', color: theme.textMuted }}>Phase</th>
                   <th style={{ padding: '1rem', textAlign: 'left', color: theme.textMuted }}>Category</th>
@@ -1259,22 +1312,19 @@ function App() {
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.background = theme.hover}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
-                      <td style={{ padding: '1rem' }}>
-                        <button
-                          onClick={() => toggleTaskStatus(task.id)}
+                      <td style={{ padding: '1rem', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={state.status === 'complete'}
+                          onChange={(e) => handleCheckboxChange(task.id, e.target.checked)}
+                          onClick={(e) => e.stopPropagation()}
                           style={{
-                            padding: '0.5rem 1rem',
-                            background: getStatusColor(state.status),
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontSize: '0.85rem',
+                            width: '20px',
+                            height: '20px',
                             cursor: 'pointer',
-                            fontWeight: '600',
-                            whiteSpace: 'nowrap',
-                          }}>
-                          {state.status || 'pending'}
-                        </button>
+                            accentColor: theme.accentGreen,
+                          }}
+                        />
                       </td>
                       <td style={{ padding: '1rem', color: theme.textPrimary }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -1335,7 +1385,28 @@ function App() {
                         {state.estHours || task.adjustedEstHours}h
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', alignItems: 'center' }}>
+                          <select
+                            value={state.status || 'pending'}
+                            onChange={(e) => handleStatusChange(task.id, e.target.value as TaskStatus)}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              padding: '0.5rem 0.75rem',
+                              background: getStatusColor(state.status),
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontSize: '0.85rem',
+                              cursor: 'pointer',
+                              fontWeight: '600',
+                              minWidth: '120px',
+                            }}>
+                            <option value="pending" style={{ background: theme.bgSecondary, color: theme.textPrimary }}>Pending</option>
+                            <option value="in-progress" style={{ background: theme.bgSecondary, color: theme.textPrimary }}>In Progress</option>
+                            <option value="complete" style={{ background: theme.bgSecondary, color: theme.textPrimary }}>Complete</option>
+                            <option value="blocked" style={{ background: theme.bgSecondary, color: theme.textPrimary }}>Blocked</option>
+                            <option value="on-hold" style={{ background: theme.bgSecondary, color: theme.textPrimary }}>On Hold</option>
+                          </select>
                           <button
                             onClick={() => handleEditTask(task)}
                             style={{
