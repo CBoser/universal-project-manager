@@ -22,6 +22,8 @@ import AnalyticsReportsModal from './components/modals/AnalyticsReportsModal';
 import CollaboratorManagementModal from './components/modals/CollaboratorManagementModal';
 import VersionManagementModal from './components/modals/VersionManagementModal';
 import SettingsModal from './components/modals/SettingsModal';
+import NewProjectChoiceModal from './components/modals/NewProjectChoiceModal';
+import CreateBlankProjectModal from './components/modals/CreateBlankProjectModal';
 import DevNotes from './components/dev/DevNotes';
 import Dashboard from './components/Dashboard';
 import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator, SavedProject } from './types';
@@ -68,6 +70,8 @@ function App() {
   const [moveHistory, setMoveHistory] = useState<MoveHistory[]>([]);
 
   // Modal states
+  const [showNewProjectChoiceModal, setShowNewProjectChoiceModal] = useState(false);
+  const [showCreateBlankProjectModal, setShowCreateBlankProjectModal] = useState(false);
   const [showAIAnalysisModal, setShowAIAnalysisModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
@@ -201,8 +205,70 @@ function App() {
       saveCurrentProject();
     }
 
-    // Show the AI Analysis modal to create a new project
+    // Show the choice modal
+    setShowNewProjectChoiceModal(true);
+  };
+
+  const handleChooseAISetup = () => {
+    setShowNewProjectChoiceModal(false);
     setShowAIAnalysisModal(true);
+  };
+
+  const handleChooseManualProject = () => {
+    setShowNewProjectChoiceModal(false);
+    setShowCreateBlankProjectModal(true);
+  };
+
+  const handleChooseImportCSV = () => {
+    setShowNewProjectChoiceModal(false);
+    setShowImportModal(true);
+  };
+
+  const handleCreateBlankProject = (projectData: {
+    name: string;
+    description: string;
+    projectType: any;
+    experienceLevel: any;
+    icon: string;
+  }) => {
+    // Create new project ID
+    const newProjectId = `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Create project metadata
+    const newProjectMeta: ProjectMeta = {
+      id: newProjectId,
+      name: projectData.name,
+      description: projectData.description || undefined,
+      projectType: projectData.projectType,
+      experienceLevel: projectData.experienceLevel,
+      status: 'active',
+      icon: projectData.icon,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Create blank project
+    const newProject: SavedProject = {
+      meta: newProjectMeta,
+      tasks: [],
+      taskStates: {},
+      phases: [],
+    };
+
+    // Save the new project
+    saveProjectToStorage(newProject);
+
+    // Load the new project into view
+    setProjectMeta(newProjectMeta);
+    setTasks([]);
+    setTaskStates({});
+    setPhaseColors({});
+    setCurrentProjectIdState(newProjectId);
+    setCurrentProjectId(newProjectId);
+    setCurrentView('project');
+
+    setShowCreateBlankProjectModal(false);
+    alert(`Project "${projectData.name}" created! Start adding tasks manually.`);
   };
 
   // Auto-save at configured interval
@@ -310,23 +376,83 @@ function App() {
   };
 
   const handleImport = (newTasks: Task[], _newPhases: any, newPhaseColors: any, metadata?: Partial<ProjectMeta>) => {
-    // Add all imported tasks
-    newTasks.forEach(task => addTask(task));
+    // If we're in dashboard view, create a new project from the import
+    if (currentView === 'dashboard') {
+      const newProjectId = `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Merge phase colors
-    setPhaseColors({ ...phaseColors, ...newPhaseColors });
+      // Create project metadata from import metadata or defaults
+      const newProjectMeta: ProjectMeta = {
+        id: newProjectId,
+        name: metadata?.name || 'Imported Project',
+        description: metadata?.description,
+        initialPrompt: metadata?.initialPrompt,
+        projectType: metadata?.projectType || 'custom',
+        experienceLevel: metadata?.experienceLevel || 'intermediate',
+        status: 'active',
+        icon: '📥',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        collaborators: metadata?.collaborators,
+        lead: metadata?.lead,
+        budget: metadata?.budget,
+        timeline: metadata?.timeline,
+        startDate: metadata?.startDate,
+        targetEndDate: metadata?.targetEndDate,
+      };
 
-    // Update project metadata if provided
-    if (metadata && Object.keys(metadata).length > 0) {
-      setProjectMeta(prev => ({
-        ...prev,
-        ...metadata,
-        // Preserve existing collaborators if not in import
-        collaborators: metadata.collaborators || prev.collaborators,
-      }));
+      // Create new project from imported data
+      const newProject: SavedProject = {
+        meta: newProjectMeta,
+        tasks: newTasks,
+        taskStates: {},
+        phases: Object.keys(newPhaseColors).map(phaseId => ({
+          phaseId,
+          phaseTitle: phaseId,
+          description: '',
+          color: newPhaseColors[phaseId],
+          typicalDuration: 0,
+        })),
+      };
 
-      const fieldsUpdated = Object.keys(metadata).filter(k => metadata[k as keyof ProjectMeta] !== undefined);
-      console.log('Updated project metadata fields:', fieldsUpdated);
+      // Save the new project
+      saveProjectToStorage(newProject);
+
+      // Load the new project into view
+      setProjectMeta(newProjectMeta);
+      setTasks(newTasks);
+      setTaskStates({});
+      setPhaseColors(newPhaseColors);
+      setCurrentProjectIdState(newProjectId);
+      setCurrentProjectId(newProjectId);
+      setCurrentView('project');
+
+      setShowImportModal(false);
+      alert(`Project "${newProjectMeta.name}" created from CSV import with ${newTasks.length} tasks!`);
+    } else {
+      // If we're in project view, add tasks to current project
+      newTasks.forEach(task => addTask(task));
+
+      // Merge phase colors
+      setPhaseColors({ ...phaseColors, ...newPhaseColors });
+
+      // Update project metadata if provided
+      if (metadata && Object.keys(metadata).length > 0) {
+        setProjectMeta(prev => ({
+          ...prev,
+          ...metadata,
+          id: prev.id, // Preserve project ID
+          createdAt: prev.createdAt, // Preserve creation date
+          icon: prev.icon, // Preserve icon
+          archived: prev.archived, // Preserve archived status
+          // Preserve existing collaborators if not in import
+          collaborators: metadata.collaborators || prev.collaborators,
+        }));
+
+        const fieldsUpdated = Object.keys(metadata).filter(k => metadata[k as keyof ProjectMeta] !== undefined);
+        console.log('Updated project metadata fields:', fieldsUpdated);
+      }
+
+      setShowImportModal(false);
     }
   };
 
@@ -529,10 +655,31 @@ function App() {
         </div>
 
         {/* Modals available from dashboard */}
+        <NewProjectChoiceModal
+          show={showNewProjectChoiceModal}
+          onClose={() => setShowNewProjectChoiceModal(false)}
+          onChooseAI={handleChooseAISetup}
+          onChooseManual={handleChooseManualProject}
+          onChooseImport={handleChooseImportCSV}
+        />
+
+        <CreateBlankProjectModal
+          show={showCreateBlankProjectModal}
+          onClose={() => setShowCreateBlankProjectModal(false)}
+          onCreate={handleCreateBlankProject}
+        />
+
         <AIAnalysisModal
           show={showAIAnalysisModal}
           onClose={() => setShowAIAnalysisModal(false)}
           onAnalysisComplete={handleAIAnalysis}
+        />
+
+        <ImportModal
+          show={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          onImport={handleImport}
+          existingPhaseColors={{}}
         />
 
         <SettingsModal
