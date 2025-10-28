@@ -24,6 +24,7 @@ import VersionManagementModal from './components/modals/VersionManagementModal';
 import SettingsModal from './components/modals/SettingsModal';
 import NewProjectChoiceModal from './components/modals/NewProjectChoiceModal';
 import CreateBlankProjectModal from './components/modals/CreateBlankProjectModal';
+import ImportProjectModal from './components/modals/ImportProjectModal';
 import DevNotes from './components/dev/DevNotes';
 import Dashboard from './components/Dashboard';
 import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator, SavedProject } from './types';
@@ -74,6 +75,7 @@ function App() {
   const [showCreateBlankProjectModal, setShowCreateBlankProjectModal] = useState(false);
   const [showAIAnalysisModal, setShowAIAnalysisModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showImportProjectModal, setShowImportProjectModal] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showEditTaskModal, setShowEditTaskModal] = useState(false);
   const [showProjectInfoModal, setShowProjectInfoModal] = useState(false);
@@ -222,6 +224,49 @@ function App() {
   const handleChooseImportCSV = () => {
     setShowNewProjectChoiceModal(false);
     setShowImportModal(true);
+  };
+
+  const handleChooseImportJSON = () => {
+    setShowNewProjectChoiceModal(false);
+    setShowImportProjectModal(true);
+  };
+
+  const handleImportProject = (project: SavedProject) => {
+    // Generate new ID to avoid conflicts
+    const newProjectId = `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Update project with new ID and timestamps
+    const newProject: SavedProject = {
+      ...project,
+      meta: {
+        ...project.meta,
+        id: newProjectId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    // Save the project
+    saveProjectToStorage(newProject);
+
+    // Load the project into view
+    setProjectMeta(newProject.meta);
+    setTasks(newProject.tasks);
+    setTaskStates(newProject.taskStates);
+
+    // Load phase colors
+    const colors: { [key: string]: string } = {};
+    newProject.phases.forEach(phase => {
+      colors[phase.phaseId] = phase.color;
+    });
+    setPhaseColors(colors);
+
+    setCurrentProjectIdState(newProjectId);
+    setCurrentProjectId(newProjectId);
+    setCurrentView('project');
+
+    setShowImportProjectModal(false);
+    alert(`Project "${newProject.meta.name}" imported successfully with ${newProject.tasks.length} tasks!`);
   };
 
   const handleCreateBlankProject = (projectData: {
@@ -660,7 +705,8 @@ function App() {
           onClose={() => setShowNewProjectChoiceModal(false)}
           onChooseAI={handleChooseAISetup}
           onChooseManual={handleChooseManualProject}
-          onChooseImport={handleChooseImportCSV}
+          onChooseImportCSV={handleChooseImportCSV}
+          onChooseImportJSON={handleChooseImportJSON}
         />
 
         <CreateBlankProjectModal
@@ -680,6 +726,12 @@ function App() {
           onClose={() => setShowImportModal(false)}
           onImport={handleImport}
           existingPhaseColors={{}}
+        />
+
+        <ImportProjectModal
+          show={showImportProjectModal}
+          onClose={() => setShowImportProjectModal(false)}
+          onImport={handleImportProject}
         />
 
         <SettingsModal
