@@ -802,104 +802,37 @@ export const mockAIService = {
   ): Promise<IterationResponse> {
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    // Smart parsing of user request to extract lists and understand intent
     const request = userRequest.toLowerCase();
 
-    // Extract lists of items from the request
-    const extractedItems = extractListItems(userRequest);
+    // ========================================
+    // 1. DETECT REQUEST TYPE AND INTENT
+    // ========================================
+    const intent = analyzeIntent(userRequest, currentProject);
 
-    // Find the target task - look for mentions in the request
-    const targetTask = findTargetTask(currentProject.tasks, userRequest);
-
-    // If we found a list of items and a target task, create subtasks
-    if (extractedItems.length > 0 && targetTask) {
-      const taskEstHours = targetTask.adjustedEstHours || targetTask.baseEstHours || 0;
-      const hoursPerSubtask = taskEstHours > 0 && extractedItems.length > 0
-        ? taskEstHours / extractedItems.length
-        : 0.13; // Default to ~8 minutes per item
-
-      const subtasks = extractedItems.map((item, index) => ({
-        id: `subtask_${Date.now()}_${index}`,
-        name: item,
-        estHours: Math.round(hoursPerSubtask * 100) / 100, // Round to 2 decimals
-        status: 'pending' as const,
-        order: index
-      }));
-
-      return {
-        success: true,
-        changes: [{
-          type: 'add_subtask',
-          target: targetTask.id,
-          data: {
-            subtasks,
-            hourMode: 'auto'
-          },
-          reasoning: `Parsed ${extractedItems.length} items from your request and created individual subtasks`
-        }],
-        explanation: `Found ${extractedItems.length} items in your request. Creating subtasks for "${targetTask.task}" with ${hoursPerSubtask.toFixed(2)} hours each.`,
-        previewData: {
-          summary: `Adding ${extractedItems.length} subtasks to ${targetTask.task}`,
-          affectedTasks: [targetTask.id],
-          newTasks: [],
-          newSubtasks: [{
-            taskId: targetTask.id,
-            subtasks
-          }]
-        }
-      };
+    // ========================================
+    // 2. HANDLE DOCUMENT/DESCRIPTION UPDATES
+    // ========================================
+    if (intent.type === 'document_update') {
+      return handleDocumentUpdate(userRequest, currentProject, intent);
     }
 
-    // If we found items but no clear target task, look for tasks with "import", "plan", "extract" etc
-    if (extractedItems.length > 0) {
-      const potentialTask = currentProject.tasks.find(t =>
-        t.task.toLowerCase().includes('import') ||
-        t.task.toLowerCase().includes('plan') ||
-        t.task.toLowerCase().includes('extract') ||
-        t.task.toLowerCase().includes('verify') ||
-        t.task.toLowerCase().includes('migrate')
-      );
-
-      if (potentialTask) {
-        const taskEstHours = potentialTask.adjustedEstHours || potentialTask.baseEstHours || 0;
-        const hoursPerSubtask = taskEstHours > 0 && extractedItems.length > 0
-          ? taskEstHours / extractedItems.length
-          : 0.13;
-
-        const subtasks = extractedItems.map((item, index) => ({
-          id: `subtask_${Date.now()}_${index}`,
-          name: item,
-          estHours: Math.round(hoursPerSubtask * 100) / 100,
-          status: 'pending' as const,
-          order: index
-        }));
-
-        return {
-          success: true,
-          changes: [{
-            type: 'add_subtask',
-            target: potentialTask.id,
-            data: {
-              subtasks,
-              hourMode: 'auto'
-            },
-            reasoning: `Found ${extractedItems.length} items in your list and matched them to "${potentialTask.task}"`
-          }],
-          explanation: `Parsed ${extractedItems.length} items from your request and matched to the most relevant task: "${potentialTask.task}"`,
-          previewData: {
-            summary: `Adding ${extractedItems.length} subtasks to ${potentialTask.task}`,
-            affectedTasks: [potentialTask.id],
-            newTasks: [],
-            newSubtasks: [{
-              taskId: potentialTask.id,
-              subtasks
-            }]
-          }
-        };
-      }
+    // ========================================
+    // 3. HANDLE BULK SUBTASK ADDITION
+    // ========================================
+    if (intent.type === 'add_subtasks' && intent.items.length > 0) {
+      return handleBulkSubtaskAddition(userRequest, currentProject, intent);
     }
 
-    // Check if user wants to add new tasks
+    // ========================================
+    // 4. HANDLE TASK COMPLETION
+    // ========================================
+    if (intent.type === 'mark_complete') {
+      return handleTaskCompletion(currentProject, intent);
+    }
+
+    // ========================================
+    // 5. HANDLE NEW TASK CREATION
+    // ========================================
     if (request.includes('add task') || request.includes('create task') || request.includes('new task')) {
       return {
         success: true,
@@ -931,13 +864,15 @@ export const mockAIService = {
       };
     }
 
-    // Fallback: generic response
+    // ========================================
+    // 6. ENHANCED FALLBACK WITH SUGGESTIONS
+    // ========================================
     return {
       success: true,
       changes: [],
-      explanation: 'I understood your request, but couldn\'t find specific items to add. Try:\n- Providing a list of items (one per line)\n- Mentioning which task to add subtasks to\n- Using keywords like "add task" or "create subtasks"',
+      explanation: buildIntelligentFallback(userRequest, currentProject, intent),
       previewData: {
-        summary: 'No changes suggested',
+        summary: 'No changes applied - see suggestions below',
         affectedTasks: [],
         newTasks: [],
         newSubtasks: []
@@ -949,6 +884,368 @@ export const mockAIService = {
     return true;
   },
 };
+
+/**
+ * Analyze user intent from their request
+ */
+function analyzeIntent(userRequest: string, project: SavedProject) {
+  const request = userRequest.toLowerCase();
+
+  // Extract numbers (like "61 plans", "5 hours", etc.)
+  const numbers = extractNumbers(userRequest);
+
+  // Extract list items
+  const items = extractListItems(userRequest);
+
+  // Find target tasks
+  const targetTask = findTargetTask(project.tasks, userRequest);
+  const targetTasks = findMultipleTasks(project.tasks, userRequest);
+
+  // Determine intent type
+  let intentType = 'unknown';
+
+  // Document update patterns
+  if (
+    request.includes('update') && (request.includes('document') || request.includes('section') || request.includes('scope')) ||
+    request.includes('replace') && request.includes('with') ||
+    request.includes('change') && request.includes(':') ||
+    request.includes('mark as') && request.includes('complete') ||
+    /change \d+:/i.test(userRequest) // "CHANGE 1:", "CHANGE 2:", etc.
+  ) {
+    intentType = 'document_update';
+  }
+  // Adding subtasks/items
+  else if (
+    items.length > 0 && (
+      request.includes('add') ||
+      request.includes('create subtask') ||
+      request.includes('need to add') ||
+      request.includes('we need to add') ||
+      (numbers.largest && numbers.largest > 5) // Large numbers suggest bulk operations
+    )
+  ) {
+    intentType = 'add_subtasks';
+  }
+  // Mark as complete
+  else if (
+    request.includes('mark') && request.includes('complete') ||
+    request.includes('mark as done') ||
+    request.includes('finish') && request.includes('task')
+  ) {
+    intentType = 'mark_complete';
+  }
+
+  return {
+    type: intentType,
+    items,
+    numbers,
+    targetTask,
+    targetTasks,
+    rawRequest: userRequest
+  };
+}
+
+/**
+ * Handle document/description update requests
+ */
+function handleDocumentUpdate(userRequest: string, project: SavedProject, intent: any): IterationResponse {
+  const request = userRequest.toLowerCase();
+
+  // Check if they want to update project description
+  if (request.includes('project description') || request.includes('update description')) {
+    return {
+      success: true,
+      changes: [],
+      explanation: `📝 I understand you want to update the project documentation.
+
+To update the project description or documentation:
+1. Click the **Project Info** (ℹ️) button in the top toolbar
+2. Edit the Description field with your changes
+3. Click "Save Changes"
+
+This is the best place to store detailed project documentation, scope changes, and requirements.
+
+💡 **Tip**: You can also add detailed notes to individual tasks by clicking on any task and using the Notes field.`,
+      previewData: {
+        summary: 'Documentation update guidance provided',
+        affectedTasks: [],
+        newTasks: [],
+        newSubtasks: []
+      }
+    };
+  }
+
+  // Generic document update guidance
+  return {
+    success: true,
+    changes: [],
+    explanation: `📄 I detected a request to update project documentation with specific changes.
+
+**Where to make these updates:**
+
+1. **Project-Level Documentation:**
+   - Click **Project Info** (ℹ️) in the toolbar
+   - Edit the Description field with your detailed content
+   - Use markdown formatting for better structure
+
+2. **Task-Level Documentation:**
+   - Click on any task to open the task editor
+   - Add notes, requirements, or specifications
+   - Track task-specific details and changes
+
+3. **Custom Fields:**
+   - Consider adding custom text subtasks for documentation tracking
+   - Use task notes for detailed specifications
+   - Link related tasks using dependencies
+
+${intent.numbers.largest ? `
+📊 **I noticed you mentioned "${intent.numbers.largest}" - this could be:**
+- Plan count: Add ${intent.numbers.largest} subtasks to a task (see below)
+- Version number: Update in Project Info description
+- Requirement count: Add to task notes
+` : ''}
+
+**To add subtasks from a list:**
+Try: "Add these ${intent.items.length || 'X'} items as subtasks to [task name]:" followed by your list.`,
+    previewData: {
+      summary: 'Documentation update guidance - no automatic changes',
+      affectedTasks: [],
+      newTasks: [],
+      newSubtasks: []
+    }
+  };
+}
+
+/**
+ * Handle bulk subtask addition
+ */
+function handleBulkSubtaskAddition(userRequest: string, project: SavedProject, intent: any): IterationResponse {
+  const items = intent.items;
+  let targetTask = intent.targetTask;
+
+  // If no specific task found, try to find a good match
+  if (!targetTask && items.length > 0) {
+    targetTask = project.tasks.find(t =>
+      t.task.toLowerCase().includes('import') ||
+      t.task.toLowerCase().includes('plan') ||
+      t.task.toLowerCase().includes('extract') ||
+      t.task.toLowerCase().includes('inventory') ||
+      t.task.toLowerCase().includes('migrate') ||
+      t.task.toLowerCase().includes('review')
+    );
+  }
+
+  // If we still don't have a target task, suggest tasks
+  if (!targetTask) {
+    const suggestedTasks = project.tasks.slice(0, 5).map(t => `- "${t.task}"`).join('\n');
+
+    return {
+      success: true,
+      changes: [],
+      explanation: `✅ I found ${items.length} items in your request:
+${items.slice(0, 10).map((item, i) => `  ${i + 1}. ${item}`).join('\n')}${items.length > 10 ? `\n  ... and ${items.length - 10} more` : ''}
+
+❓ **Which task should I add these to?**
+
+I couldn't automatically determine which task these items belong to.
+
+**Available tasks:**
+${suggestedTasks}
+
+**To add these subtasks, try:**
+"Add these ${items.length} items as subtasks to [task name]:" followed by your list.
+
+**Example:**
+"Add these plans to 'Complete Plan Inventory': [your list]"`,
+      previewData: {
+        summary: `Found ${items.length} items but need task specification`,
+        affectedTasks: [],
+        newTasks: [],
+        newSubtasks: []
+      }
+    };
+  }
+
+  // We have both items and a target task - create subtasks!
+  const taskEstHours = targetTask.adjustedEstHours || targetTask.baseEstHours || 0;
+  const hoursPerSubtask = taskEstHours > 0 && items.length > 0
+    ? taskEstHours / items.length
+    : 0.13; // Default ~8 minutes per item
+
+  const subtasks = items.map((item, index) => ({
+    id: `subtask_${Date.now()}_${index}`,
+    name: item,
+    estHours: Math.round(hoursPerSubtask * 100) / 100,
+    status: 'pending' as const,
+    order: index
+  }));
+
+  return {
+    success: true,
+    changes: [{
+      type: 'add_subtask',
+      target: targetTask.id,
+      data: {
+        subtasks,
+        hourMode: 'auto'
+      },
+      reasoning: `Extracted ${items.length} items and matched to "${targetTask.task}"`
+    }],
+    explanation: `✅ **Successfully parsed ${items.length} items!**
+
+**Adding subtasks to:** "${targetTask.task}"
+**Hours per subtask:** ${hoursPerSubtask.toFixed(2)} hours
+**Total hours:** ${(hoursPerSubtask * items.length).toFixed(2)} hours
+
+**Preview of subtasks (first 10):**
+${items.slice(0, 10).map((item, i) => `  ${i + 1}. ${item} (${hoursPerSubtask.toFixed(2)}h)`).join('\n')}${items.length > 10 ? `\n  ... and ${items.length - 10} more` : ''}
+
+Click "Apply Changes" to add these subtasks to your project.`,
+    previewData: {
+      summary: `Adding ${items.length} subtasks to "${targetTask.task}"`,
+      affectedTasks: [targetTask.id],
+      newTasks: [],
+      newSubtasks: [{
+        taskId: targetTask.id,
+        subtasks
+      }]
+    }
+  };
+}
+
+/**
+ * Handle marking tasks as complete
+ */
+function handleTaskCompletion(project: SavedProject, intent: any): IterationResponse {
+  if (intent.targetTask) {
+    return {
+      success: true,
+      changes: [],
+      explanation: `✅ To mark "${intent.targetTask.task}" as complete:
+
+1. Find the task in your project task list
+2. Click the checkbox next to the task name
+3. The task will be marked as complete
+
+💡 **Note:** The Iterate AI focuses on adding/modifying content. Use the project UI to update task status, hours, and completion.`,
+      previewData: {
+        summary: 'Task completion guidance provided',
+        affectedTasks: [],
+        newTasks: [],
+        newSubtasks: []
+      }
+    };
+  }
+
+  return {
+    success: true,
+    changes: [],
+    explanation: `To mark tasks as complete, click the checkbox next to each task in your project. The Iterate AI helps with adding and organizing content, while task status is managed through the project interface.`,
+    previewData: {
+      summary: 'Task completion guidance',
+      affectedTasks: [],
+      newTasks: [],
+      newSubtasks: []
+    }
+  };
+}
+
+/**
+ * Build intelligent fallback response with helpful suggestions
+ */
+function buildIntelligentFallback(userRequest: string, project: SavedProject, intent: any): string {
+  const items = intent.items;
+  const numbers = intent.numbers;
+
+  let response = `🤔 **I analyzed your request but need more specific information.**\n\n`;
+
+  // What we understood
+  if (items.length > 0) {
+    response += `✅ **What I found:**\n`;
+    response += `- ${items.length} potential items/plans in your request\n`;
+    if (items.length <= 10) {
+      response += `  Items: ${items.slice(0, 5).join(', ')}${items.length > 5 ? '...' : ''}\n`;
+    }
+    response += `\n`;
+  }
+
+  if (numbers.all.length > 0) {
+    response += `- Numbers mentioned: ${numbers.all.join(', ')}\n\n`;
+  }
+
+  // Suggestions based on what we found
+  response += `💡 **To help me understand better, try one of these:**\n\n`;
+
+  if (items.length > 0) {
+    const exampleTask = project.tasks.find(t =>
+      t.task.toLowerCase().includes('plan') ||
+      t.task.toLowerCase().includes('import') ||
+      t.task.toLowerCase().includes('extract')
+    ) || project.tasks[0];
+
+    response += `**1. Add subtasks with specific task name:**\n`;
+    response += `"Add these ${items.length} items to '${exampleTask?.task}':"\n`;
+    response += `[followed by your list]\n\n`;
+  }
+
+  response += `**2. Create a new task:**\n`;
+  response += `"Create a new task called 'Review Documentation'"\n\n`;
+
+  response += `**3. Update project description:**\n`;
+  response += `Use the **Project Info** (ℹ️) button to edit project details, scope, and documentation.\n\n`;
+
+  response += `**4. Add items to multiple tasks:**\n`;
+  response += `"Add review subtask to all Phase 1 tasks"\n\n`;
+
+  // Show available tasks for reference
+  if (project.tasks.length > 0) {
+    response += `📋 **Your current tasks (for reference):**\n`;
+    project.tasks.slice(0, 8).forEach(t => {
+      response += `- "${t.task}" (${t.phaseTitle})\n`;
+    });
+    if (project.tasks.length > 8) {
+      response += `... and ${project.tasks.length - 8} more tasks\n`;
+    }
+  }
+
+  return response;
+}
+
+/**
+ * Extract numbers from text with context
+ */
+function extractNumbers(text: string): { all: number[], largest: number | null } {
+  const matches = text.match(/\d+/g);
+  if (!matches) {
+    return { all: [], largest: null };
+  }
+
+  const numbers = matches.map(m => parseInt(m, 10));
+  return {
+    all: numbers,
+    largest: numbers.length > 0 ? Math.max(...numbers) : null
+  };
+}
+
+/**
+ * Find multiple tasks that match criteria
+ */
+function findMultipleTasks(tasks: Task[], request: string): Task[] {
+  const requestLower = request.toLowerCase();
+  const matching: Task[] = [];
+
+  // Phase-based matching
+  if (requestLower.includes('phase 1') || requestLower.includes('phase one')) {
+    matching.push(...tasks.filter(t => t.phaseTitle.toLowerCase().includes('phase 1') || t.phase.includes('1')));
+  }
+
+  // Category-based matching
+  if (requestLower.includes('all') && requestLower.includes('review')) {
+    matching.push(...tasks.filter(t => t.task.toLowerCase().includes('review')));
+  }
+
+  return matching;
+}
 
 /**
  * Extract list items from user request
