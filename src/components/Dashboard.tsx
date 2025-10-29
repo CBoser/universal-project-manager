@@ -14,8 +14,8 @@ import {
   exportProjectToJSON,
   setCurrentProjectId,
 } from '../services/projectStorage';
-import UserManagementModal from './modals/UserManagementModal';
-import TimeLogViewerModal from './modals/TimeLogViewerModal';
+import { UserManagementModal } from './modals/UserManagementModal';
+import { TimeLogViewerModal } from './modals/TimeLogViewerModal';
 
 interface DashboardProps {
   onOpenProject: (projectId: string) => void;
