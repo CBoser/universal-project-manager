@@ -31,6 +31,8 @@ import Dashboard from './components/Dashboard';
 import { IterateProjectModal } from './components/modals/IterateProjectModal';
 import { SubtaskList } from './components/SubtaskList';
 import { TimeTrackingModal } from './components/modals/TimeTrackingModal';
+import { UserManagementModal } from './components/modals/UserManagementModal';
+import { TimeLogViewerModal } from './components/modals/TimeLogViewerModal';
 import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator, SavedProject, IterationResponse } from './types';
 import {
   getProject,
@@ -38,6 +40,8 @@ import {
   getCurrentProjectId,
   setCurrentProjectId,
 } from './services/projectStorage';
+import { createTimeLog } from './services/timeLogService';
+import { getActiveUsers } from './services/userService';
 
 interface MoveHistory {
   taskId: string;
@@ -95,6 +99,8 @@ function App() {
   const [showVersionModal, setShowVersionModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showTimeTrackingModal, setShowTimeTrackingModal] = useState(false);
+  const [showUserManagementModal, setShowUserManagementModal] = useState(false);
+  const [showTimeLogViewerModal, setShowTimeLogViewerModal] = useState(false);
 
   // Dropdown state
   const [openDropdown, setOpenDropdown] = useState<'tools' | 'data' | 'export' | null>(null);
@@ -121,6 +127,12 @@ function App() {
 
   // Expanded subtasks tracking
   const [expandedSubtasks, setExpandedSubtasks] = useState<Set<string>>(new Set());
+
+  // Current user for time logging
+  const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
+    const saved = localStorage.getItem('current_user_id');
+    return saved || null;
+  });
 
   // Calculate phases from tasks
   const phases: { [key: string]: string } = {};
@@ -599,9 +611,59 @@ function App() {
   };
 
   const handleLogSubtaskTime = (taskId: string, subtaskId: string, hours: number) => {
+    // Get current user
+    const users = getActiveUsers();
+    let userId = currentUserId;
+    let userName = 'Unknown User';
+
+    // If no current user is set, try to find one or create a default
+    if (!userId) {
+      if (users.length > 0) {
+        userId = users[0].id;
+        userName = users[0].name;
+        setCurrentUserId(userId);
+        localStorage.setItem('current_user_id', userId);
+      } else {
+        // No users exist, show alert
+        alert('Please add users in the User Management section before logging time.');
+        return;
+      }
+    } else {
+      const user = users.find(u => u.id === userId);
+      if (user) {
+        userName = user.name;
+      }
+    }
+
+    // Find the task and subtask
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const subtask = task.subtasks?.find(st => st.id === subtaskId);
+    if (!subtask) return;
+
+    // Update subtask actual hours
+    const currentActual = subtask.actualHours || 0;
     updateSubtask(taskId, subtaskId, {
-      actualHours: (hours || 0)
+      actualHours: currentActual + hours
     });
+
+    // Create time log entry
+    if (currentProjectId) {
+      createTimeLog({
+        projectId: currentProjectId,
+        projectName: projectMeta.name,
+        taskId: task.id,
+        taskName: task.task,
+        subtaskId: subtask.id,
+        subtaskName: subtask.name,
+        userId: userId!,
+        userName: userName,
+        date: new Date().toISOString().split('T')[0],
+        hours: hours,
+        notes: `Logged ${hours}h on ${subtask.name}`,
+      });
+    }
   };
 
   const handleEditSubtask = (taskId: string, subtaskId: string, updates: Partial<any>) => {
@@ -1147,6 +1209,7 @@ function App() {
               isOpen={openDropdown === 'tools'}
               onClick={() => setOpenDropdown(openDropdown === 'tools' ? null : 'tools')}
               items={[
+                { icon: '👤', label: 'User Management', onClick: () => { setShowUserManagementModal(true); setOpenDropdown(null); } },
                 { icon: '👥', label: 'Manage Team', onClick: () => { setShowCollaboratorModal(true); setOpenDropdown(null); } },
                 { icon: '📊', label: 'Edit Phases', onClick: () => { setShowPhaseManagementModal(true); setOpenDropdown(null); } },
                 { icon: '🏷️', label: 'Edit Categories', onClick: () => { setShowCategoryManagementModal(true); setOpenDropdown(null); } },
@@ -1158,6 +1221,7 @@ function App() {
               isOpen={openDropdown === 'data'}
               onClick={() => setOpenDropdown(openDropdown === 'data' ? null : 'data')}
               items={[
+                { icon: '📋', label: 'Time Log Viewer', onClick: () => { setShowTimeLogViewerModal(true); setOpenDropdown(null); } },
                 { icon: '⏱️', label: 'Time Tracking', onClick: () => { setShowTimeTrackingModal(true); setOpenDropdown(null); } },
                 { icon: '📸', label: 'Create Snapshot', onClick: () => { handleSaveSnapshot(); setOpenDropdown(null); } },
                 { icon: '🔄', label: 'View Versions', onClick: () => { setShowVersionModal(true); setOpenDropdown(null); } },
@@ -1790,6 +1854,16 @@ function App() {
         taskStates={taskStates}
         phases={phases}
         phaseColors={phaseColors}
+      />
+
+      <UserManagementModal
+        show={showUserManagementModal}
+        onClose={() => setShowUserManagementModal(false)}
+      />
+
+      <TimeLogViewerModal
+        show={showTimeLogViewerModal}
+        onClose={() => setShowTimeLogViewerModal(false)}
       />
 
       {/* Footer */}
