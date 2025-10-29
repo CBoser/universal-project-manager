@@ -96,6 +96,7 @@ export interface Subtask {
   id: string;                      // Unique subtask identifier
   name: string;                    // Subtask name/description
   estHours?: number;               // Estimated hours for this subtask
+  actualHours?: number;            // Actual hours logged for this subtask
   status: SubtaskStatus;           // Current status
   notes?: string;                  // Subtask notes
   completedDate?: string;          // When was it completed (ISO date string)
