@@ -14,6 +14,8 @@ import {
   exportProjectToJSON,
   setCurrentProjectId,
 } from '../services/projectStorage';
+import UserManagementModal from './modals/UserManagementModal';
+import TimeLogViewerModal from './modals/TimeLogViewerModal';
 
 interface DashboardProps {
   onOpenProject: (projectId: string) => void;
@@ -25,6 +27,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onOpenProject, onNewProject }) =>
   const [filter, setFilter] = useState<ProjectStatus | 'all'>('all');
   const [showArchived, setShowArchived] = useState(false);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [showUserManagementModal, setShowUserManagementModal] = useState(false);
+  const [showTimeLogViewerModal, setShowTimeLogViewerModal] = useState(false);
 
   // Load projects
   useEffect(() => {
@@ -121,10 +125,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onOpenProject, onNewProject }) =>
       {/* Header */}
       <div style={styles.header}>
         <h1 style={styles.title}>Universal Project Manager</h1>
-        <button style={styles.btnNew} onClick={onNewProject}>
-          <span>+</span>
-          <span>New Project</span>
-        </button>
+        <div style={styles.headerButtons}>
+          <button style={styles.btnTool} onClick={() => setShowUserManagementModal(true)}>
+            <span>👤</span>
+            <span>User Management</span>
+          </button>
+          <button style={styles.btnTool} onClick={() => setShowTimeLogViewerModal(true)}>
+            <span>📋</span>
+            <span>Time Log Viewer</span>
+          </button>
+          <button style={styles.btnNew} onClick={onNewProject}>
+            <span>+</span>
+            <span>New Project</span>
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -287,6 +301,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onOpenProject, onNewProject }) =>
           })
         )}
       </div>
+
+      {/* Modals */}
+      <UserManagementModal
+        show={showUserManagementModal}
+        onClose={() => setShowUserManagementModal(false)}
+      />
+      <TimeLogViewerModal
+        show={showTimeLogViewerModal}
+        onClose={() => setShowTimeLogViewerModal(false)}
+      />
     </div>
   );
 };
@@ -315,6 +339,26 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '28px',
     fontWeight: 600,
     margin: 0,
+  },
+  headerButtons: {
+    display: 'flex',
+    gap: '12px',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  btnTool: {
+    background: '#2a3441',
+    color: '#e6eef8',
+    border: '1px solid #3a4451',
+    padding: '12px 20px',
+    borderRadius: '8px',
+    fontSize: '15px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    transition: 'all 0.3s ease',
   },
   btnNew: {
     background: '#00A3FF',
@@ -545,6 +589,16 @@ styleTag.innerHTML = `
   }
   .menu-dropdown button:hover {
     background: #2a3441;
+  }
+  button[style*="background: #2a3441"]:hover {
+    background: #3a4451 !important;
+    border-color: #4a5461 !important;
+    transform: translateY(-2px);
+  }
+  button[style*="background: #00A3FF"]:hover {
+    background: #0090e0 !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 163, 255, 0.3);
   }
 `;
 document.head.appendChild(styleTag);
