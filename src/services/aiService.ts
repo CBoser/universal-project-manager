@@ -9,8 +9,11 @@ import type {
   Task,
   ProjectMeta,
   TaskState,
+  SavedProject,
+  IterationResponse,
 } from '../types';
 import { EXPERIENCE_MULTIPLIERS, AI_CONFIG } from '../config/constants';
+import { TASK_CATEGORIES } from '../config/categories';
 
 // Backend API URL
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
@@ -150,6 +153,60 @@ export const aiService = {
   },
 
   /**
+   * Iterate/refine an existing project with AI assistance
+   */
+  async iterateProject(
+    userRequest: string,
+    currentProject: SavedProject
+  ): Promise<IterationResponse> {
+    if (USE_MOCK) {
+      return mockAIService.iterateProject(userRequest, currentProject);
+    }
+
+    const prompt = buildIterationPrompt(userRequest, currentProject);
+
+    console.log('🚀 Sending iteration request to backend API...');
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/ai/iterate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          model: AI_CONFIG.model,
+          maxTokens: AI_CONFIG.maxTokens,
+          apiKey: getApiKey(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Received iteration response from backend API');
+
+      return parseIterationResponse(data.content);
+    } catch (error) {
+      console.error('❌ Error in iteration request:', error);
+
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          throw new Error('Cannot connect to backend server. Make sure the backend is running on port 3001.');
+        }
+        if (error.message.includes('timeout') || error.message.includes('timed out')) {
+          throw new Error('Request timed out. Please try a simpler request.');
+        }
+      }
+
+      throw new Error('Failed to generate iteration suggestions. Please try again.');
+    }
+  },
+
+  /**
    * Check if AI service is available
    */
   async isAvailable(): Promise<boolean> {
@@ -280,6 +337,93 @@ Please provide a comprehensive analysis in JSON format:
 }
 
 /**
+ * Build prompt for project iteration
+ */
+function buildIterationPrompt(userRequest: string, project: SavedProject): string {
+  const projectContext = {
+    name: project.meta.name,
+    description: project.meta.description,
+    phases: project.phases.map(p => ({
+      id: p.phaseId,
+      title: p.phaseTitle,
+      description: p.description
+    })),
+    tasks: project.tasks.map(t => ({
+      id: t.id,
+      name: t.task,
+      phase: t.phaseTitle,
+      category: t.category,
+      estimatedHours: t.adjustedEstHours,
+      subtaskCount: t.subtasks?.length || 0,
+      hasSubtasks: !!t.subtasks && t.subtasks.length > 0
+    }))
+  };
+
+  return `You are a project management assistant helping to refine an existing project.
+
+CURRENT PROJECT CONTEXT:
+${JSON.stringify(projectContext, null, 2)}
+
+USER REQUEST:
+"${userRequest}"
+
+INSTRUCTIONS:
+1. Analyze the user's request in context of the existing project
+2. Determine what changes are needed (add tasks, create subtasks, modify estimates, etc.)
+3. Suggest specific, actionable changes
+4. Provide reasoning for each change
+5. Return response in this JSON format:
+
+{
+  "success": true,
+  "changes": [
+    {
+      "type": "add_subtask" | "add_task" | "modify_task" | "add_phase" | "update_estimate" | "add_dependency",
+      "target": "task_id or phase_name",
+      "data": {
+        // Specific change data based on type
+        // For add_subtask: { subtasks: [{name: "...", estHours: 0.13, status: "pending", order: 0}], hourMode: "auto" }
+        // For add_task: { task: "...", phase: "...", phaseTitle: "...", baseEstHours: 5, category: "..." }
+      },
+      "reasoning": "Why this change makes sense"
+    }
+  ],
+  "explanation": "Summary of what you're doing and why",
+  "previewData": {
+    "summary": "High-level summary (e.g., 'Adding 61 subtasks to Import Plan Library')",
+    "affectedTasks": ["task_id"],
+    "newTasks": [],
+    "newSubtasks": [
+      {
+        "taskId": "task_123",
+        "subtasks": [
+          {
+            "id": "subtask_${Date.now()}_0",
+            "name": "Example subtask name",
+            "estHours": 0.13,
+            "status": "pending",
+            "order": 0
+          }
+        ]
+      }
+    ]
+  }
+}
+
+RULES:
+- Preserve all existing task progress, actual hours, and states
+- Use these valid categories ONLY: ${TASK_CATEGORIES.join(', ')}
+- Keep estimates realistic for construction/technical projects
+- If parsing a list of items, create one subtask per item
+- If user provides hours, use them; otherwise estimate reasonably
+- ALWAYS include taskId references for existing tasks
+- For subtasks, generate unique IDs using format: "subtask_\${timestamp}_\${index}"
+- Return ONLY valid JSON, no markdown formatting or code blocks
+
+Generate the iteration response now:`;
+}
+
+/**
  * Parse Claude's analysis response
  */
 function parseAnalysisResponse(content: string): AIAnalysisResponse {
@@ -355,6 +499,52 @@ function parseProgressReport(content: string, projectId: string): AIReport {
   } catch (error) {
     console.error('Error parsing progress report:', error);
     throw new Error('Failed to parse AI progress report');
+  }
+}
+
+/**
+ * Parse iteration response from AI
+ */
+function parseIterationResponse(content: string): IterationResponse {
+  try {
+    // Remove markdown code blocks if present
+    let cleanedContent = content.trim();
+    cleanedContent = cleanedContent.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '');
+
+    // Extract JSON from response
+    const firstBrace = cleanedContent.indexOf('{');
+    const lastBrace = cleanedContent.lastIndexOf('}');
+
+    if (firstBrace === -1 || lastBrace === -1) {
+      console.error('Response content:', content);
+      throw new Error('No JSON found in iteration response');
+    }
+
+    const jsonStr = cleanedContent.substring(firstBrace, lastBrace + 1);
+    const parsed = JSON.parse(jsonStr);
+
+    // Validate required fields
+    if (!parsed.changes || !Array.isArray(parsed.changes)) {
+      throw new Error('Invalid response: missing changes array');
+    }
+
+    console.log(`✅ Successfully parsed iteration response with ${parsed.changes.length} changes`);
+
+    return {
+      success: parsed.success !== false,
+      changes: parsed.changes,
+      explanation: parsed.explanation || 'AI suggested changes to your project',
+      previewData: parsed.previewData || {
+        summary: '',
+        affectedTasks: [],
+        newTasks: [],
+        newSubtasks: []
+      }
+    };
+  } catch (error) {
+    console.error('❌ Error parsing iteration response:', error);
+    console.error('Response content:', content.substring(0, 500) + '...');
+    throw new Error('Failed to parse AI iteration response. Please try again.');
   }
 }
 
@@ -586,6 +776,82 @@ export const mockAIService = {
         formattedReport: 'Mock progress report',
         apiPayload: {},
       },
+    };
+  },
+
+  async iterateProject(
+    _userRequest: string,
+    currentProject: SavedProject
+  ): Promise<IterationResponse> {
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // Simple mock response for adding subtasks
+    const taskToModify = currentProject.tasks.find(t =>
+      t.task.toLowerCase().includes('import') ||
+      t.task.toLowerCase().includes('plan')
+    );
+
+    if (taskToModify) {
+      return {
+        success: true,
+        changes: [{
+          type: 'add_subtask',
+          target: taskToModify.id,
+          data: {
+            subtasks: [
+              { id: `subtask_${Date.now()}_0`, name: 'Example Subtask 1', estHours: 0.5, status: 'pending', order: 0 },
+              { id: `subtask_${Date.now()}_1`, name: 'Example Subtask 2', estHours: 0.5, status: 'pending', order: 1 },
+              { id: `subtask_${Date.now()}_2`, name: 'Example Subtask 3', estHours: 0.5, status: 'pending', order: 2 },
+            ],
+            hourMode: 'auto'
+          },
+          reasoning: 'Breaking down the task into smaller, manageable subtasks'
+        }],
+        explanation: 'Added 3 example subtasks to demonstrate the iteration feature',
+        previewData: {
+          summary: 'Adding 3 subtasks to ' + taskToModify.task,
+          affectedTasks: [taskToModify.id],
+          newTasks: [],
+          newSubtasks: [{
+            taskId: taskToModify.id,
+            subtasks: [
+              { id: `subtask_${Date.now()}_0`, name: 'Example Subtask 1', estHours: 0.5, status: 'pending', order: 0 },
+              { id: `subtask_${Date.now()}_1`, name: 'Example Subtask 2', estHours: 0.5, status: 'pending', order: 1 },
+              { id: `subtask_${Date.now()}_2`, name: 'Example Subtask 3', estHours: 0.5, status: 'pending', order: 2 },
+            ]
+          }]
+        }
+      };
+    }
+
+    // Fallback: add a new task
+    return {
+      success: true,
+      changes: [{
+        type: 'add_task',
+        data: {
+          task: 'New Task from AI',
+          phase: currentProject.phases[0]?.phaseId || 'planning',
+          phaseTitle: currentProject.phases[0]?.phaseTitle || 'Planning',
+          baseEstHours: 5,
+          category: 'Planning',
+          adjustedEstHours: 5
+        },
+        reasoning: 'Adding a new task based on your request'
+      }],
+      explanation: 'Added a new task to your project',
+      previewData: {
+        summary: 'Adding 1 new task',
+        affectedTasks: [],
+        newTasks: [{
+          task: 'New Task from AI',
+          phase: currentProject.phases[0]?.phaseId || 'planning',
+          phaseTitle: currentProject.phases[0]?.phaseTitle || 'Planning',
+          baseEstHours: 5,
+          category: 'Planning'
+        }],
+        newSubtasks: []
+      }
     };
   },
 
