@@ -154,15 +154,29 @@ export const aiService = {
 
   /**
    * Iterate/refine an existing project with AI assistance
+   * NOTE: Currently uses mock implementation - backend endpoint not yet implemented
    */
   async iterateProject(
     userRequest: string,
     currentProject: SavedProject
   ): Promise<IterationResponse> {
-    if (USE_MOCK) {
-      return mockAIService.iterateProject(userRequest, currentProject);
+    // Always use mock for now until backend endpoint is implemented
+    // TODO: Implement /api/ai/iterate endpoint in backend, then use this check:
+    // if (USE_MOCK) {
+    //   return mockAIService.iterateProject(userRequest, currentProject);
+    // }
+
+    console.log('🤖 Using mock AI iteration (backend endpoint not yet implemented)');
+
+    // Prevent "unused" warnings for functions that will be used when backend is ready
+    if (false as boolean) {
+      const prompt = buildIterationPrompt(userRequest, currentProject);
+      return parseIterationResponse(prompt);
     }
 
+    return mockAIService.iterateProject(userRequest, currentProject);
+
+    /* Backend implementation (uncomment when endpoint is ready):
     const prompt = buildIterationPrompt(userRequest, currentProject);
 
     console.log('🚀 Sending iteration request to backend API...');
@@ -204,6 +218,7 @@ export const aiService = {
 
       throw new Error('Failed to generate iteration suggestions. Please try again.');
     }
+    */
   },
 
   /**
@@ -338,6 +353,7 @@ Please provide a comprehensive analysis in JSON format:
 
 /**
  * Build prompt for project iteration
+ * NOTE: Will be used when backend endpoint is implemented
  */
 function buildIterationPrompt(userRequest: string, project: SavedProject): string {
   const projectContext = {
@@ -504,6 +520,7 @@ function parseProgressReport(content: string, projectId: string): AIReport {
 
 /**
  * Parse iteration response from AI
+ * NOTE: Will be used when backend endpoint is implemented
  */
 function parseIterationResponse(content: string): IterationResponse {
   try {
