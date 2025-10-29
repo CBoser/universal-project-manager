@@ -2,7 +2,7 @@
 // Universal Project Manager - Main Application
 // ============================================
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { theme } from './config/theme';
 import { DEFAULT_PROJECT_META, DEFAULT_CATEGORIES } from './config/constants';
 import { useTaskManagement } from './hooks/useTaskManagement';
@@ -29,6 +29,7 @@ import DropdownButton from './components/DropdownButton';
 import DevNotes from './components/dev/DevNotes';
 import Dashboard from './components/Dashboard';
 import { IterateProjectModal } from './components/modals/IterateProjectModal';
+import { SubtaskList } from './components/SubtaskList';
 import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator, SavedProject, IterationResponse } from './types';
 import {
   getProject,
@@ -65,6 +66,8 @@ function App() {
     deleteTask,
     updateTaskState,
     reorderTasks,
+    updateSubtask,
+    toggleSubtaskStatus,
   } = useTaskManagement(savedData?.tasks || [], savedData?.taskStates || {});
 
   const [phaseColors, setPhaseColors] = useState(savedData?.phaseColors || {});
@@ -112,6 +115,9 @@ function App() {
 
   // Drag and drop
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+
+  // Expanded subtasks tracking
+  const [expandedSubtasks, setExpandedSubtasks] = useState<Set<string>>(new Set());
 
   // Calculate phases from tasks
   const phases: { [key: string]: string } = {};
@@ -575,6 +581,24 @@ function App() {
     if (confirm('Are you sure you want to delete this task?')) {
       deleteTask(taskId);
     }
+  };
+
+  const handleToggleSubtasks = (taskId: string) => {
+    setExpandedSubtasks(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+      } else {
+        newSet.add(taskId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleLogSubtaskTime = (taskId: string, subtaskId: string, hours: number) => {
+    updateSubtask(taskId, subtaskId, {
+      actualHours: (hours || 0)
+    });
   };
 
   const handleSaveProjectInfo = (updatedMeta: ProjectMeta) => {
@@ -1383,20 +1407,20 @@ function App() {
                 {filteredTasks.map((task) => {
                   const state = taskStates[task.id] || {};
                   return (
-                    <tr
-                      key={task.id}
-                      draggable
-                      onDragStart={() => handleDragStart(task.id)}
-                      onDragOver={handleDragOver}
-                      onDrop={() => handleDrop(task.id)}
-                      style={{
-                        borderBottom: `1px solid ${theme.border}`,
-                        transition: 'background 0.2s',
-                        cursor: 'grab',
-                        opacity: draggedTaskId === task.id ? 0.5 : 1,
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = theme.hover}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                    <React.Fragment key={task.id}>
+                      <tr
+                        draggable
+                        onDragStart={() => handleDragStart(task.id)}
+                        onDragOver={handleDragOver}
+                        onDrop={() => handleDrop(task.id)}
+                        style={{
+                          borderBottom: `1px solid ${theme.border}`,
+                          transition: 'background 0.2s',
+                          cursor: 'grab',
+                          opacity: draggedTaskId === task.id ? 0.5 : 1,
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = theme.hover}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
                         <input
                           type="checkbox"
@@ -1455,15 +1479,31 @@ function App() {
                           const completedCount = task.subtasks.filter(st => st.status === 'completed').length;
                           const totalCount = task.subtasks.length;
                           const percentage = (completedCount / totalCount) * 100;
+                          const isExpanded = expandedSubtasks.has(task.id);
                           return (
-                            <div style={{
-                              marginTop: '0.5rem',
-                              fontSize: '0.75rem',
-                              color: theme.textMuted,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.5rem'
-                            }}>
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleSubtasks(task.id);
+                              }}
+                              style={{
+                                marginTop: '0.5rem',
+                                fontSize: '0.75rem',
+                                color: theme.textMuted,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                cursor: 'pointer',
+                                padding: '0.25rem',
+                                borderRadius: '4px',
+                                transition: 'background 0.2s'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.background = theme.bgTertiary}
+                              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <span style={{ fontSize: '10px', color: theme.accentBlue }}>
+                                {isExpanded ? '▼' : '▶'}
+                              </span>
                               <span>📋 {completedCount}/{totalCount} subtasks</span>
                               <div style={{
                                 width: '80px',
@@ -1503,7 +1543,33 @@ function App() {
                         {task.category}
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'right', color: theme.textPrimary, fontWeight: '600' }}>
-                        {state.estHours || task.adjustedEstHours}h
+                        {(() => {
+                          // Calculate total estimated and actual hours from subtasks
+                          if (task.subtasks && task.subtasks.length > 0) {
+                            const totalEst = task.subtasks.reduce((sum, st) => sum + (st.estHours || 0), 0);
+                            const totalActual = task.subtasks.reduce((sum, st) => sum + (st.actualHours || 0), 0);
+
+                            if (totalActual > 0) {
+                              const isOverEstimate = totalActual > totalEst;
+                              return (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
+                                  <div style={{ fontSize: '0.75rem', color: theme.textMuted }}>
+                                    Est: {totalEst.toFixed(1)}h
+                                  </div>
+                                  <div style={{
+                                    fontSize: '0.85rem',
+                                    color: isOverEstimate ? theme.accentRed : theme.accentGreen,
+                                    fontWeight: '600'
+                                  }}>
+                                    Act: {totalActual.toFixed(1)}h
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return `${totalEst.toFixed(1)}h`;
+                          }
+                          return `${state.estHours || task.adjustedEstHours}h`;
+                        })()}
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', alignItems: 'center' }}>
@@ -1557,6 +1623,21 @@ function App() {
                         </div>
                       </td>
                     </tr>
+                    {/* Expanded Subtask List Row */}
+                    {task.subtasks && task.subtasks.length > 0 && expandedSubtasks.has(task.id) && (
+                      <tr>
+                        <td colSpan={6} style={{ padding: '0 1rem 1rem 1rem', background: theme.bgTertiary }}>
+                          <SubtaskList
+                            subtasks={task.subtasks}
+                            onSubtaskToggle={(subtaskId) => toggleSubtaskStatus(task.id, subtaskId)}
+                            onLogTime={(subtaskId, hours) => handleLogSubtaskTime(task.id, subtaskId, hours)}
+                            showTimeTracking={true}
+                            editable={false}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
