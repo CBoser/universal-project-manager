@@ -4,7 +4,8 @@ import { Subtask, SubtaskStatus } from '../types';
 interface SubtaskListProps {
   subtasks: Subtask[];
   onSubtaskToggle: (subtaskId: string) => void;
-  onSubtaskEdit?: (subtaskId: string) => void;
+  onSubtaskEdit?: (subtaskId: string, updates: Partial<Subtask>) => void;
+  onSubtaskDelete?: (subtaskId: string) => void;
   onLogTime?: (subtaskId: string, hours: number) => void;
   editable?: boolean;
   showTimeTracking?: boolean;
@@ -14,6 +15,7 @@ export const SubtaskList: React.FC<SubtaskListProps> = ({
   subtasks,
   onSubtaskToggle,
   onSubtaskEdit,
+  onSubtaskDelete,
   onLogTime,
   editable = false,
   showTimeTracking = false
@@ -21,6 +23,12 @@ export const SubtaskList: React.FC<SubtaskListProps> = ({
   const [expanded, setExpanded] = useState(false);
   const [loggingTimeFor, setLoggingTimeFor] = useState<string | null>(null);
   const [timeInput, setTimeInput] = useState('');
+  const [editingSubtask, setEditingSubtask] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ name: string; estHours: string; notes: string }>({
+    name: '',
+    estHours: '',
+    notes: ''
+  });
 
   if (!subtasks || subtasks.length === 0) {
     return null;
@@ -46,6 +54,38 @@ export const SubtaskList: React.FC<SubtaskListProps> = ({
     }
     setLoggingTimeFor(null);
     setTimeInput('');
+  };
+
+  const handleStartEdit = (subtask: Subtask) => {
+    setEditingSubtask(subtask.id);
+    setEditForm({
+      name: subtask.name,
+      estHours: subtask.estHours?.toString() || '',
+      notes: subtask.notes || ''
+    });
+  };
+
+  const handleSaveEdit = (subtaskId: string) => {
+    if (!editForm.name.trim()) {
+      alert('Subtask name cannot be empty');
+      return;
+    }
+
+    const updates: Partial<Subtask> = {
+      name: editForm.name.trim(),
+      estHours: editForm.estHours ? parseFloat(editForm.estHours) : undefined,
+      notes: editForm.notes.trim() || undefined
+    };
+
+    if (onSubtaskEdit) {
+      onSubtaskEdit(subtaskId, updates);
+    }
+    setEditingSubtask(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSubtask(null);
+    setEditForm({ name: '', estHours: '', notes: '' });
   };
 
   const getStatusColor = (status: SubtaskStatus): string => {
@@ -95,73 +135,128 @@ export const SubtaskList: React.FC<SubtaskListProps> = ({
         <div style={styles.subtaskList}>
           {sortedSubtasks.map((subtask) => (
             <div key={subtask.id}>
-              <div style={styles.subtaskItem}>
-                <input
-                  type="checkbox"
-                  checked={subtask.status === 'completed'}
-                  onChange={() => onSubtaskToggle(subtask.id)}
-                  style={styles.checkbox}
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <span
-                  style={{
-                    ...styles.statusIcon,
-                    color: getStatusColor(subtask.status)
-                  }}
-                >
-                  {getStatusIcon(subtask.status)}
-                </span>
-                <span
-                  style={{
-                    ...styles.subtaskName,
-                    textDecoration: subtask.status === 'completed' ? 'line-through' : 'none',
-                    opacity: subtask.status === 'completed' ? 0.7 : 1
-                  }}
-                >
-                  {subtask.name}
-                </span>
-                {showTimeTracking && (
-                  <span style={styles.timeDisplay}>
-                    {subtask.estHours !== undefined && (
-                      <span style={styles.estHours}>Est: {subtask.estHours.toFixed(2)}h</span>
-                    )}
-                    <span style={subtask.actualHours !== undefined && subtask.actualHours > (subtask.estHours || 0)
-                      ? { ...styles.actualHours, color: '#f44336' }
-                      : styles.actualHours
-                    }>
-                      Act: {(subtask.actualHours || 0).toFixed(2)}h
-                    </span>
+              {editingSubtask === subtask.id ? (
+                /* Edit Form */
+                <div style={styles.editForm}>
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    placeholder="Subtask name"
+                    style={styles.editInput}
+                    autoFocus
+                  />
+                  <input
+                    type="number"
+                    value={editForm.estHours}
+                    onChange={(e) => setEditForm({ ...editForm, estHours: e.target.value })}
+                    placeholder="Est. hours"
+                    step="0.25"
+                    min="0"
+                    style={styles.editInputSmall}
+                  />
+                  <input
+                    type="text"
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    placeholder="Notes (optional)"
+                    style={styles.editInput}
+                  />
+                  <button
+                    onClick={() => handleSaveEdit(subtask.id)}
+                    style={styles.saveButton}
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={handleCancelEdit}
+                    style={styles.cancelButton}
+                  >
+                    Cancel
+                  </button>
+                  {onSubtaskDelete && (
+                    <button
+                      onClick={() => {
+                        if (confirm('Delete this subtask?')) {
+                          onSubtaskDelete(subtask.id);
+                        }
+                      }}
+                      style={styles.deleteButton}
+                    >
+                      🗑️
+                    </button>
+                  )}
+                </div>
+              ) : (
+                /* Normal Display */
+                <div style={styles.subtaskItem}>
+                  <input
+                    type="checkbox"
+                    checked={subtask.status === 'completed'}
+                    onChange={() => onSubtaskToggle(subtask.id)}
+                    style={styles.checkbox}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <span
+                    style={{
+                      ...styles.statusIcon,
+                      color: getStatusColor(subtask.status)
+                    }}
+                  >
+                    {getStatusIcon(subtask.status)}
                   </span>
-                )}
-                {!showTimeTracking && subtask.estHours !== undefined && (
-                  <span style={styles.hours}>{subtask.estHours.toFixed(2)}h</span>
-                )}
-                {subtask.notes && (
-                  <span style={styles.notes} title={subtask.notes}>📝</span>
-                )}
-                {showTimeTracking && onLogTime && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setLoggingTimeFor(subtask.id);
+                  <span
+                    style={{
+                      ...styles.subtaskName,
+                      textDecoration: subtask.status === 'completed' ? 'line-through' : 'none',
+                      opacity: subtask.status === 'completed' ? 0.7 : 1
                     }}
-                    style={styles.logTimeButton}
                   >
-                    + Log Time
-                  </button>
-                )}
-                {editable && onSubtaskEdit && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSubtaskEdit(subtask.id);
-                    }}
-                    style={styles.editButton}
-                  >
-                    Edit
-                  </button>
-                )}
-              </div>
+                    {subtask.name}
+                  </span>
+                  {showTimeTracking && (
+                    <span style={styles.timeDisplay}>
+                      {subtask.estHours !== undefined && (
+                        <span style={styles.estHours}>Est: {subtask.estHours.toFixed(2)}h</span>
+                      )}
+                      <span style={subtask.actualHours !== undefined && subtask.actualHours > (subtask.estHours || 0)
+                        ? { ...styles.actualHours, color: '#f44336' }
+                        : styles.actualHours
+                      }>
+                        Act: {(subtask.actualHours || 0).toFixed(2)}h
+                      </span>
+                    </span>
+                  )}
+                  {!showTimeTracking && subtask.estHours !== undefined && (
+                    <span style={styles.hours}>{subtask.estHours.toFixed(2)}h</span>
+                  )}
+                  {subtask.notes && (
+                    <span style={styles.notes} title={subtask.notes}>📝</span>
+                  )}
+                  {showTimeTracking && onLogTime && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLoggingTimeFor(subtask.id);
+                      }}
+                      style={styles.logTimeButton}
+                    >
+                      + Log Time
+                    </button>
+                  )}
+                  {editable && onSubtaskEdit && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartEdit(subtask);
+                      }}
+                      style={styles.editButton}
+                    >
+                      ✏️ Edit
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Time Logging Input */}
               {loggingTimeFor === subtask.id && (
@@ -354,6 +449,53 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: '11px',
     backgroundColor: '#2a3142',
     color: '#e0e6ed',
+    border: 'none',
+    borderRadius: '3px',
+    cursor: 'pointer',
+  },
+  editForm: {
+    display: 'flex',
+    gap: '8px',
+    padding: '8px',
+    backgroundColor: '#0b0f14',
+    borderRadius: '4px',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  editInput: {
+    flex: '1 1 200px',
+    padding: '4px 8px',
+    fontSize: '12px',
+    backgroundColor: '#1a1f2e',
+    color: '#e0e6ed',
+    border: '1px solid #2a3142',
+    borderRadius: '3px',
+    outline: 'none',
+  },
+  editInputSmall: {
+    width: '80px',
+    padding: '4px 8px',
+    fontSize: '12px',
+    backgroundColor: '#1a1f2e',
+    color: '#e0e6ed',
+    border: '1px solid #2a3142',
+    borderRadius: '3px',
+    outline: 'none',
+  },
+  saveButton: {
+    padding: '4px 12px',
+    fontSize: '11px',
+    backgroundColor: '#4caf50',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '3px',
+    cursor: 'pointer',
+  },
+  deleteButton: {
+    padding: '4px 12px',
+    fontSize: '11px',
+    backgroundColor: '#f44336',
+    color: '#fff',
     border: 'none',
     borderRadius: '3px',
     cursor: 'pointer',

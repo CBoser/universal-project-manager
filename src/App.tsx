@@ -30,6 +30,7 @@ import DevNotes from './components/dev/DevNotes';
 import Dashboard from './components/Dashboard';
 import { IterateProjectModal } from './components/modals/IterateProjectModal';
 import { SubtaskList } from './components/SubtaskList';
+import { TimeTrackingModal } from './components/modals/TimeTrackingModal';
 import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator, SavedProject, IterationResponse } from './types';
 import {
   getProject,
@@ -68,6 +69,7 @@ function App() {
     reorderTasks,
     updateSubtask,
     toggleSubtaskStatus,
+    deleteSubtask,
   } = useTaskManagement(savedData?.tasks || [], savedData?.taskStates || {});
 
   const [phaseColors, setPhaseColors] = useState(savedData?.phaseColors || {});
@@ -92,6 +94,7 @@ function App() {
   const [showCollaboratorModal, setShowCollaboratorModal] = useState(false);
   const [showVersionModal, setShowVersionModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showTimeTrackingModal, setShowTimeTrackingModal] = useState(false);
 
   // Dropdown state
   const [openDropdown, setOpenDropdown] = useState<'tools' | 'data' | 'export' | null>(null);
@@ -599,6 +602,14 @@ function App() {
     updateSubtask(taskId, subtaskId, {
       actualHours: (hours || 0)
     });
+  };
+
+  const handleEditSubtask = (taskId: string, subtaskId: string, updates: Partial<any>) => {
+    updateSubtask(taskId, subtaskId, updates);
+  };
+
+  const handleDeleteSubtask = (taskId: string, subtaskId: string) => {
+    deleteSubtask(taskId, subtaskId);
   };
 
   const handleSaveProjectInfo = (updatedMeta: ProjectMeta) => {
@@ -1147,6 +1158,7 @@ function App() {
               isOpen={openDropdown === 'data'}
               onClick={() => setOpenDropdown(openDropdown === 'data' ? null : 'data')}
               items={[
+                { icon: '⏱️', label: 'Time Tracking', onClick: () => { setShowTimeTrackingModal(true); setOpenDropdown(null); } },
                 { icon: '📸', label: 'Create Snapshot', onClick: () => { handleSaveSnapshot(); setOpenDropdown(null); } },
                 { icon: '🔄', label: 'View Versions', onClick: () => { setShowVersionModal(true); setOpenDropdown(null); } },
                 { icon: '📜', label: 'View History', onClick: () => { setShowReportsHistoryModal(true); setOpenDropdown(null); } },
@@ -1631,8 +1643,10 @@ function App() {
                             subtasks={task.subtasks}
                             onSubtaskToggle={(subtaskId) => toggleSubtaskStatus(task.id, subtaskId)}
                             onLogTime={(subtaskId, hours) => handleLogSubtaskTime(task.id, subtaskId, hours)}
+                            onSubtaskEdit={(subtaskId, updates) => handleEditSubtask(task.id, subtaskId, updates)}
+                            onSubtaskDelete={(subtaskId) => handleDeleteSubtask(task.id, subtaskId)}
                             showTimeTracking={true}
-                            editable={false}
+                            editable={true}
                           />
                         </td>
                       </tr>
@@ -1767,6 +1781,15 @@ function App() {
       <SettingsModal
         show={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
+      />
+
+      <TimeTrackingModal
+        show={showTimeTrackingModal}
+        onClose={() => setShowTimeTrackingModal(false)}
+        tasks={tasks}
+        taskStates={taskStates}
+        phases={phases}
+        phaseColors={phaseColors}
       />
 
       {/* Footer */}
