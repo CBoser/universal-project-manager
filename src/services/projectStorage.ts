@@ -159,11 +159,19 @@ export function calculateProjectStats(project: SavedProject) {
     if (status === 'complete') completed++;
     if (status === 'in-progress') inProgress++;
 
-    totalEstHours += task.adjustedEstHours || 0;
+    // Calculate hours from subtasks if they exist, otherwise use task-level hours
+    if (task.subtasks && task.subtasks.length > 0) {
+      task.subtasks.forEach(st => {
+        totalEstHours += st.estHours || 0;
+        totalActualHours += st.actualHours || 0;
+      });
+    } else {
+      totalEstHours += task.adjustedEstHours || 0;
 
-    // Calculate actual hours from time logs
-    if (state?.timeLogs) {
-      totalActualHours += state.timeLogs.reduce((sum, log) => sum + log.hours, 0);
+      // Calculate actual hours from time logs
+      if (state?.timeLogs) {
+        totalActualHours += state.timeLogs.reduce((sum, log) => sum + log.hours, 0);
+      }
     }
   });
 
