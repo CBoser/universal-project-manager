@@ -3,6 +3,7 @@
 // ============================================
 
 import type { ProjectMeta, Task } from '../types';
+import { TASK_CATEGORIES } from './categories';
 
 /**
  * Default project metadata
@@ -31,20 +32,9 @@ export const EXPERIENCE_MULTIPLIERS = {
 
 /**
  * Default task categories (universal)
+ * Note: This re-exports the canonical category list from categories.ts
  */
-export const DEFAULT_CATEGORIES = [
-  'Planning',
-  'Research',
-  'Design',
-  'Development',
-  'Implementation',
-  'Testing',
-  'Review',
-  'Documentation',
-  'Marketing',
-  'Admin',
-  'Other',
-];
+export const DEFAULT_CATEGORIES = [...TASK_CATEGORIES];
 
 /**
  * Initial deliverables - BLANK TEMPLATE

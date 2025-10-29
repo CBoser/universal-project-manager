@@ -265,3 +265,58 @@ export interface SavedProject {
   taskStates: { [taskId: string]: TaskState };
   phases: Phase[];
 }
+
+/**
+ * AI Project Iteration Types
+ */
+
+/**
+ * Request to iterate/refine an existing project with AI
+ */
+export interface IterationRequest {
+  projectId: string;
+  userRequest: string;
+  currentProject: SavedProject;
+}
+
+/**
+ * Type of change that can be made during iteration
+ */
+export type ProjectChangeType =
+  | 'add_task'
+  | 'add_subtask'
+  | 'modify_task'
+  | 'add_phase'
+  | 'update_estimate'
+  | 'add_dependency';
+
+/**
+ * Individual change to be made to the project
+ */
+export interface ProjectChange {
+  type: ProjectChangeType;
+  target?: string;           // Task ID or phase name
+  data: any;                 // Change-specific data
+  reasoning: string;         // Why this change makes sense
+}
+
+/**
+ * Preview data for iteration changes
+ */
+export interface IterationPreviewData {
+  summary: string;                                          // High-level summary
+  affectedTasks: string[];                                  // Task IDs that will change
+  newTasks: Partial<Task>[];                                // Tasks to be created
+  newSubtasks: { taskId: string; subtasks: Subtask[] }[];   // Subtasks to add
+  estimateChanges?: { taskId: string; oldEstimate: number; newEstimate: number }[];
+}
+
+/**
+ * Response from AI iteration request
+ */
+export interface IterationResponse {
+  success: boolean;
+  changes: ProjectChange[];
+  explanation: string;
+  previewData: IterationPreviewData;
+}

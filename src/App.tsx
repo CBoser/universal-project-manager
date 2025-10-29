@@ -28,7 +28,8 @@ import ImportProjectModal from './components/modals/ImportProjectModal';
 import DropdownButton from './components/DropdownButton';
 import DevNotes from './components/dev/DevNotes';
 import Dashboard from './components/Dashboard';
-import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator, SavedProject } from './types';
+import { IterateProjectModal } from './components/modals/IterateProjectModal';
+import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator, SavedProject, IterationResponse } from './types';
 import {
   getProject,
   saveProject as saveProjectToStorage,
@@ -80,6 +81,7 @@ function App() {
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [showEditTaskModal, setShowEditTaskModal] = useState(false);
   const [showProjectInfoModal, setShowProjectInfoModal] = useState(false);
+  const [showIterateProjectModal, setShowIterateProjectModal] = useState(false);
   const [showPhaseManagementModal, setShowPhaseManagementModal] = useState(false);
   const [showCategoryManagementModal, setShowCategoryManagementModal] = useState(false);
   const [showReportsHistoryModal, setShowReportsHistoryModal] = useState(false);
@@ -579,6 +581,95 @@ function App() {
     setProjectMeta(updatedMeta);
   };
 
+  const handleApplyIterationChanges = (response: IterationResponse) => {
+    const updatedTasks = [...tasks];
+
+    response.changes.forEach(change => {
+      switch (change.type) {
+        case 'add_subtask':
+          const taskIndex = updatedTasks.findIndex(t => t.id === change.target);
+          if (taskIndex !== -1) {
+            const existingSubtasks = updatedTasks[taskIndex].subtasks || [];
+            updatedTasks[taskIndex] = {
+              ...updatedTasks[taskIndex],
+              subtasks: [...existingSubtasks, ...change.data.subtasks],
+              subtaskHourMode: change.data.hourMode || 'auto'
+            };
+          }
+          break;
+
+        case 'add_task':
+          const newTask: Task = {
+            id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            task: change.data.task,
+            phase: change.data.phase,
+            phaseTitle: change.data.phaseTitle,
+            category: change.data.category,
+            baseEstHours: change.data.baseEstHours,
+            adjustedEstHours: change.data.adjustedEstHours || change.data.baseEstHours,
+            aiGenerated: true
+          };
+          updatedTasks.push(newTask);
+
+          // Initialize task state
+          setTaskStates(prev => ({
+            ...prev,
+            [newTask.id]: {
+              estHours: newTask.adjustedEstHours,
+              actualHours: '0',
+              status: 'pending',
+              notes: '',
+            }
+          }));
+          break;
+
+        case 'modify_task':
+          const modTaskIndex = updatedTasks.findIndex(t => t.id === change.target);
+          if (modTaskIndex !== -1) {
+            updatedTasks[modTaskIndex] = {
+              ...updatedTasks[modTaskIndex],
+              ...change.data
+            };
+          }
+          break;
+
+        case 'update_estimate':
+          const estTaskIndex = updatedTasks.findIndex(t => t.id === change.target);
+          if (estTaskIndex !== -1) {
+            updatedTasks[estTaskIndex].baseEstHours = change.data.newEstimate;
+            updatedTasks[estTaskIndex].adjustedEstHours = change.data.newEstimate;
+          }
+          break;
+
+        case 'add_phase':
+          // Phase would need to be added to the phases array
+          // Not implementing full phase management here
+          break;
+
+        case 'add_dependency':
+          const depTaskIndex = updatedTasks.findIndex(t => t.id === change.target);
+          if (depTaskIndex !== -1) {
+            updatedTasks[depTaskIndex].dependencies = [
+              ...(updatedTasks[depTaskIndex].dependencies || []),
+              ...change.data.dependencies
+            ];
+          }
+          break;
+      }
+    });
+
+    setTasks(updatedTasks);
+
+    // Update project metadata
+    setProjectMeta({
+      ...projectMeta,
+      updatedAt: new Date().toISOString()
+    });
+
+    // Show success message (you could add a toast notification here)
+    alert('✅ Project updated successfully!');
+  };
+
   const handleSavePhases = (newPhases: { [key: string]: string }, newPhaseColors: { [key: string]: string }) => {
     setPhaseColors(newPhaseColors);
 
@@ -985,6 +1076,25 @@ function App() {
             onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)'; }}>
             ℹ️ Project Info
+          </button>
+
+          <button
+            onClick={() => setShowIterateProjectModal(true)}
+            style={{
+              height: '40px',
+              padding: '10px 20px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '0.95rem',
+              fontWeight: '500',
+              cursor: 'pointer',
+              transition: 'filter 0.2s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.filter = 'brightness(1.1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.filter = 'brightness(1)'; }}>
+            🤖 Iterate with AI
           </button>
         </div>
 
@@ -1499,6 +1609,24 @@ function App() {
         onClose={() => setShowProjectInfoModal(false)}
         onSave={handleSaveProjectInfo}
         projectMeta={projectMeta}
+      />
+
+      <IterateProjectModal
+        show={showIterateProjectModal}
+        onClose={() => setShowIterateProjectModal(false)}
+        onApplyChanges={handleApplyIterationChanges}
+        project={{
+          meta: projectMeta,
+          tasks: tasks,
+          taskStates: taskStates,
+          phases: Object.entries(phases).map(([phaseId, phaseTitle]) => ({
+            phaseId,
+            phaseTitle,
+            description: '',
+            color: phaseColors[phaseId] || '#00A3FF',
+            typicalDuration: 7
+          }))
+        }}
       />
 
       <PhaseManagementModal
