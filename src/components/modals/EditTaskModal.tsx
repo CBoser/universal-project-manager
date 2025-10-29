@@ -5,7 +5,8 @@
 import { useState, useEffect } from 'react';
 import { theme } from '../../config/theme';
 import Modal from '../Modal';
-import type { Task, TaskState, Collaborator, TimeLog } from '../../types';
+import { BulkAddSubtasksModal } from './BulkAddSubtasksModal';
+import type { Task, TaskState, Collaborator, TimeLog, Subtask, SubtaskHourMode } from '../../types';
 
 interface EditTaskModalProps {
   show: boolean;
@@ -65,10 +66,18 @@ export default function EditTaskModal({
   const [newLogDate, setNewLogDate] = useState('');
   const [newLogNotes, setNewLogNotes] = useState('');
 
+  // Subtask management
+  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  const [subtaskHourMode, setSubtaskHourMode] = useState<SubtaskHourMode>('manual');
+  const [showBulkAddSubtasks, setShowBulkAddSubtasks] = useState(false);
+
   const phaseEntries = Object.entries(phases);
 
   // Calculate total logged time
   const totalLoggedHours = timeLogs.reduce((sum, log) => sum + log.hours, 0);
+
+  // Calculate total subtask hours
+  const totalSubtaskHours = subtasks.reduce((sum, st) => sum + (st.estHours || 0), 0);
 
   // Pre-populate form when task changes
   useEffect(() => {
@@ -80,6 +89,8 @@ export default function EditTaskModal({
       setNotes(task.notes || '');
       setCriticalPath(task.criticalPath || false);
       setAssignedTo(task.assignedTo || '');
+      setSubtasks(task.subtasks || []);
+      setSubtaskHourMode(task.subtaskHourMode || 'manual');
     }
 
     if (taskState) {
@@ -124,6 +135,30 @@ export default function EditTaskModal({
     }
   };
 
+  const handleBulkAddSubtasks = (newSubtasks: Subtask[]) => {
+    setSubtasks([...subtasks, ...newSubtasks]);
+  };
+
+  const handleToggleSubtask = (subtaskId: string) => {
+    setSubtasks(subtasks.map(st => {
+      if (st.id === subtaskId) {
+        const newStatus = st.status === 'completed' ? 'pending' : 'completed';
+        return {
+          ...st,
+          status: newStatus,
+          completedDate: newStatus === 'completed' ? new Date().toISOString() : undefined
+        };
+      }
+      return st;
+    }));
+  };
+
+  const handleDeleteSubtask = (subtaskId: string) => {
+    if (confirm('Delete this subtask?')) {
+      setSubtasks(subtasks.filter(st => st.id !== subtaskId));
+    }
+  };
+
   const handleSave = () => {
     if (!task) return;
 
@@ -144,6 +179,12 @@ export default function EditTaskModal({
       return;
     }
 
+    // Calculate final hours based on subtask mode
+    let finalEstHours = parseFloat(estHours);
+    if (subtaskHourMode === 'auto' && subtasks.length > 0) {
+      finalEstHours = totalSubtaskHours;
+    }
+
     // Update task
     const updatedTask: Task = {
       ...task,
@@ -151,10 +192,12 @@ export default function EditTaskModal({
       phase: selectedPhase,
       phaseTitle: phases[selectedPhase],
       category: selectedCategory,
-      adjustedEstHours: parseFloat(estHours),
+      adjustedEstHours: finalEstHours,
       criticalPath: criticalPath,
       notes: notes.trim() || undefined,
       assignedTo: assignedTo || undefined,
+      subtasks: subtasks.length > 0 ? subtasks : undefined,
+      subtaskHourMode: subtasks.length > 0 ? subtaskHourMode : undefined,
     };
 
     onUpdateTask(updatedTask);
@@ -425,6 +468,133 @@ export default function EditTaskModal({
           )}
         </div>
 
+        {/* Subtask Management Section */}
+        <div style={{
+          marginBottom: '1rem',
+          padding: '1rem',
+          background: theme.bgSecondary,
+          borderRadius: '8px',
+          border: `1px solid ${theme.border}`
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div>
+              <h3 style={{ margin: 0, color: theme.textPrimary, fontSize: '1.1rem' }}>📋 Subtasks</h3>
+              <div style={{ color: theme.textMuted, fontSize: '0.9rem', marginTop: '0.25rem' }}>
+                Break down this task into smaller trackable items
+                {subtasks.length > 0 && (
+                  <span>
+                    {' '}- <strong style={{ color: theme.accentBlue }}>
+                      {subtasks.filter(st => st.status === 'completed').length}/{subtasks.length}
+                    </strong> completed
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => setShowBulkAddSubtasks(true)}
+              style={{
+                ...buttonStyle,
+                background: theme.accentGreen,
+                color: '#fff',
+              }}
+            >
+              + Bulk Add
+            </button>
+          </div>
+
+          {/* Hour Mode Selection */}
+          {subtasks.length > 0 && (
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', color: theme.textMuted, fontSize: '0.85rem', fontWeight: '600' }}>
+                Hour Calculation Mode:
+              </label>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: theme.textPrimary }}>
+                  <input
+                    type="radio"
+                    checked={subtaskHourMode === 'manual'}
+                    onChange={() => setSubtaskHourMode('manual')}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span>Manual ({estHours} hrs)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: theme.textPrimary }}>
+                  <input
+                    type="radio"
+                    checked={subtaskHourMode === 'auto'}
+                    onChange={() => setSubtaskHourMode('auto')}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span>Auto-calculate from subtasks ({totalSubtaskHours.toFixed(2)} hrs)</span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Subtask List */}
+          {subtasks.length > 0 ? (
+            <div>
+              {subtasks.sort((a, b) => a.order - b.order).map(subtask => (
+                <div
+                  key={subtask.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem',
+                    background: theme.bgTertiary,
+                    borderRadius: '4px',
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={subtask.status === 'completed'}
+                    onChange={() => handleToggleSubtask(subtask.id)}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span style={{
+                    flex: 1,
+                    color: theme.textPrimary,
+                    textDecoration: subtask.status === 'completed' ? 'line-through' : 'none',
+                    opacity: subtask.status === 'completed' ? 0.7 : 1,
+                  }}>
+                    {subtask.name}
+                  </span>
+                  {subtask.estHours !== undefined && (
+                    <span style={{ color: theme.accentBlue, fontSize: '0.85rem', fontWeight: '600' }}>
+                      {subtask.estHours.toFixed(2)}h
+                    </span>
+                  )}
+                  <button
+                    onClick={() => handleDeleteSubtask(subtask.id)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: theme.accentRed,
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      padding: '0.25rem',
+                    }}
+                    title="Delete subtask"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{
+              textAlign: 'center',
+              padding: '2rem',
+              color: theme.textMuted,
+              fontSize: '0.9rem'
+            }}>
+              No subtasks yet. Click "+ Bulk Add" to add multiple subtasks at once.
+            </div>
+          )}
+        </div>
+
         {/* Notes */}
         <div style={{ marginBottom: '1rem' }}>
           <label style={{ display: 'block', marginBottom: '0.5rem', color: theme.textMuted, fontWeight: '600' }}>
@@ -486,6 +656,15 @@ export default function EditTaskModal({
           Save Changes
         </button>
       </div>
+
+      {/* Bulk Add Subtasks Modal */}
+      <BulkAddSubtasksModal
+        show={showBulkAddSubtasks}
+        onClose={() => setShowBulkAddSubtasks(false)}
+        onAdd={handleBulkAddSubtasks}
+        taskName={taskName}
+        taskEstHours={parseFloat(estHours) || 0}
+      />
     </Modal>
   );
 }

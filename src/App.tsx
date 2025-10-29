@@ -1302,21 +1302,22 @@ function App() {
                         />
                       </td>
                       <td style={{ padding: '1rem', color: theme.textPrimary }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          <span>{task.task}</span>
-                          {task.criticalPath && (
-                            <span style={{
-                              padding: '0.25rem 0.5rem',
-                              background: theme.accentRed,
-                              color: '#fff',
-                              fontSize: '0.75rem',
-                              borderRadius: '4px',
-                              fontWeight: '600',
-                            }}>
-                              CRITICAL
-                            </span>
-                          )}
-                          {task.assignedTo && (() => {
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <span>{task.task}</span>
+                            {task.criticalPath && (
+                              <span style={{
+                                padding: '0.25rem 0.5rem',
+                                background: theme.accentRed,
+                                color: '#fff',
+                                fontSize: '0.75rem',
+                                borderRadius: '4px',
+                                fontWeight: '600',
+                              }}>
+                                CRITICAL
+                              </span>
+                            )}
+                            {task.assignedTo && (() => {
                             const collab = (projectMeta.collaborators || []).find(c => c.id === task.assignedTo);
                             if (!collab) return null;
                             return (
@@ -1340,6 +1341,41 @@ function App() {
                             );
                           })()}
                         </div>
+                        {task.subtasks && task.subtasks.length > 0 && (() => {
+                          const completedCount = task.subtasks.filter(st => st.status === 'completed').length;
+                          const totalCount = task.subtasks.length;
+                          const percentage = (completedCount / totalCount) * 100;
+                          return (
+                            <div style={{
+                              marginTop: '0.5rem',
+                              fontSize: '0.75rem',
+                              color: theme.textMuted,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem'
+                            }}>
+                              <span>📋 {completedCount}/{totalCount} subtasks</span>
+                              <div style={{
+                                width: '80px',
+                                height: '4px',
+                                background: theme.bgTertiary,
+                                borderRadius: '2px',
+                                overflow: 'hidden'
+                              }}>
+                                <div style={{
+                                  width: `${percentage}%`,
+                                  height: '100%',
+                                  background: theme.accentGreen,
+                                  transition: 'width 0.3s ease'
+                                }} />
+                              </div>
+                              <span style={{ color: theme.accentBlue, fontWeight: '600' }}>
+                                {percentage.toFixed(0)}%
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </div>
                       </td>
                       <td style={{ padding: '1rem' }}>
                         <span style={{
