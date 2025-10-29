@@ -797,76 +797,149 @@ export const mockAIService = {
   },
 
   async iterateProject(
-    _userRequest: string,
+    userRequest: string,
     currentProject: SavedProject
   ): Promise<IterationResponse> {
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    // Simple mock response for adding subtasks
-    const taskToModify = currentProject.tasks.find(t =>
-      t.task.toLowerCase().includes('import') ||
-      t.task.toLowerCase().includes('plan')
-    );
+    // Smart parsing of user request to extract lists and understand intent
+    const request = userRequest.toLowerCase();
 
-    if (taskToModify) {
+    // Extract lists of items from the request
+    const extractedItems = extractListItems(userRequest);
+
+    // Find the target task - look for mentions in the request
+    const targetTask = findTargetTask(currentProject.tasks, userRequest);
+
+    // If we found a list of items and a target task, create subtasks
+    if (extractedItems.length > 0 && targetTask) {
+      const taskEstHours = targetTask.adjustedEstHours || targetTask.baseEstHours || 0;
+      const hoursPerSubtask = taskEstHours > 0 && extractedItems.length > 0
+        ? taskEstHours / extractedItems.length
+        : 0.13; // Default to ~8 minutes per item
+
+      const subtasks = extractedItems.map((item, index) => ({
+        id: `subtask_${Date.now()}_${index}`,
+        name: item,
+        estHours: Math.round(hoursPerSubtask * 100) / 100, // Round to 2 decimals
+        status: 'pending' as const,
+        order: index
+      }));
+
       return {
         success: true,
         changes: [{
           type: 'add_subtask',
-          target: taskToModify.id,
+          target: targetTask.id,
           data: {
-            subtasks: [
-              { id: `subtask_${Date.now()}_0`, name: 'Example Subtask 1', estHours: 0.5, status: 'pending', order: 0 },
-              { id: `subtask_${Date.now()}_1`, name: 'Example Subtask 2', estHours: 0.5, status: 'pending', order: 1 },
-              { id: `subtask_${Date.now()}_2`, name: 'Example Subtask 3', estHours: 0.5, status: 'pending', order: 2 },
-            ],
+            subtasks,
             hourMode: 'auto'
           },
-          reasoning: 'Breaking down the task into smaller, manageable subtasks'
+          reasoning: `Parsed ${extractedItems.length} items from your request and created individual subtasks`
         }],
-        explanation: 'Added 3 example subtasks to demonstrate the iteration feature',
+        explanation: `Found ${extractedItems.length} items in your request. Creating subtasks for "${targetTask.task}" with ${hoursPerSubtask.toFixed(2)} hours each.`,
         previewData: {
-          summary: 'Adding 3 subtasks to ' + taskToModify.task,
-          affectedTasks: [taskToModify.id],
+          summary: `Adding ${extractedItems.length} subtasks to ${targetTask.task}`,
+          affectedTasks: [targetTask.id],
           newTasks: [],
           newSubtasks: [{
-            taskId: taskToModify.id,
-            subtasks: [
-              { id: `subtask_${Date.now()}_0`, name: 'Example Subtask 1', estHours: 0.5, status: 'pending', order: 0 },
-              { id: `subtask_${Date.now()}_1`, name: 'Example Subtask 2', estHours: 0.5, status: 'pending', order: 1 },
-              { id: `subtask_${Date.now()}_2`, name: 'Example Subtask 3', estHours: 0.5, status: 'pending', order: 2 },
-            ]
+            taskId: targetTask.id,
+            subtasks
           }]
         }
       };
     }
 
-    // Fallback: add a new task
+    // If we found items but no clear target task, look for tasks with "import", "plan", "extract" etc
+    if (extractedItems.length > 0) {
+      const potentialTask = currentProject.tasks.find(t =>
+        t.task.toLowerCase().includes('import') ||
+        t.task.toLowerCase().includes('plan') ||
+        t.task.toLowerCase().includes('extract') ||
+        t.task.toLowerCase().includes('verify') ||
+        t.task.toLowerCase().includes('migrate')
+      );
+
+      if (potentialTask) {
+        const taskEstHours = potentialTask.adjustedEstHours || potentialTask.baseEstHours || 0;
+        const hoursPerSubtask = taskEstHours > 0 && extractedItems.length > 0
+          ? taskEstHours / extractedItems.length
+          : 0.13;
+
+        const subtasks = extractedItems.map((item, index) => ({
+          id: `subtask_${Date.now()}_${index}`,
+          name: item,
+          estHours: Math.round(hoursPerSubtask * 100) / 100,
+          status: 'pending' as const,
+          order: index
+        }));
+
+        return {
+          success: true,
+          changes: [{
+            type: 'add_subtask',
+            target: potentialTask.id,
+            data: {
+              subtasks,
+              hourMode: 'auto'
+            },
+            reasoning: `Found ${extractedItems.length} items in your list and matched them to "${potentialTask.task}"`
+          }],
+          explanation: `Parsed ${extractedItems.length} items from your request and matched to the most relevant task: "${potentialTask.task}"`,
+          previewData: {
+            summary: `Adding ${extractedItems.length} subtasks to ${potentialTask.task}`,
+            affectedTasks: [potentialTask.id],
+            newTasks: [],
+            newSubtasks: [{
+              taskId: potentialTask.id,
+              subtasks
+            }]
+          }
+        };
+      }
+    }
+
+    // Check if user wants to add new tasks
+    if (request.includes('add task') || request.includes('create task') || request.includes('new task')) {
+      return {
+        success: true,
+        changes: [{
+          type: 'add_task',
+          data: {
+            task: 'New Task from AI Request',
+            phase: currentProject.phases[0]?.phaseId || 'planning',
+            phaseTitle: currentProject.phases[0]?.phaseTitle || 'Planning',
+            baseEstHours: 5,
+            category: 'Planning',
+            adjustedEstHours: 5
+          },
+          reasoning: 'Creating a new task based on your request'
+        }],
+        explanation: 'Added a new task. You can edit the details in the task editor.',
+        previewData: {
+          summary: 'Adding 1 new task',
+          affectedTasks: [],
+          newTasks: [{
+            task: 'New Task from AI Request',
+            phase: currentProject.phases[0]?.phaseId || 'planning',
+            phaseTitle: currentProject.phases[0]?.phaseTitle || 'Planning',
+            baseEstHours: 5,
+            category: 'Planning'
+          }],
+          newSubtasks: []
+        }
+      };
+    }
+
+    // Fallback: generic response
     return {
       success: true,
-      changes: [{
-        type: 'add_task',
-        data: {
-          task: 'New Task from AI',
-          phase: currentProject.phases[0]?.phaseId || 'planning',
-          phaseTitle: currentProject.phases[0]?.phaseTitle || 'Planning',
-          baseEstHours: 5,
-          category: 'Planning',
-          adjustedEstHours: 5
-        },
-        reasoning: 'Adding a new task based on your request'
-      }],
-      explanation: 'Added a new task to your project',
+      changes: [],
+      explanation: 'I understood your request, but couldn\'t find specific items to add. Try:\n- Providing a list of items (one per line)\n- Mentioning which task to add subtasks to\n- Using keywords like "add task" or "create subtasks"',
       previewData: {
-        summary: 'Adding 1 new task',
+        summary: 'No changes suggested',
         affectedTasks: [],
-        newTasks: [{
-          task: 'New Task from AI',
-          phase: currentProject.phases[0]?.phaseId || 'planning',
-          phaseTitle: currentProject.phases[0]?.phaseTitle || 'Planning',
-          baseEstHours: 5,
-          category: 'Planning'
-        }],
+        newTasks: [],
         newSubtasks: []
       }
     };
@@ -876,3 +949,95 @@ export const mockAIService = {
     return true;
   },
 };
+
+/**
+ * Extract list items from user request
+ * Looks for patterns like:
+ * - Lines that look like plan names (G17E EDWARD, G18L LINDSAY, etc.)
+ * - Numbered or bulleted lists
+ * - Comma-separated items
+ */
+function extractListItems(text: string): string[] {
+  const items: string[] = [];
+
+  // Split by newlines and look for list-like patterns
+  const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+
+  for (const line of lines) {
+    // Match plan names like "G17E EDWARD", "G260 JEFFERSON", "GA35 IRONWOOD 1"
+    const planMatch = line.match(/^([A-Z]\d+[A-Z]?\s+[A-Z][A-Z\s\d]+)$/);
+    if (planMatch) {
+      items.push(planMatch[1]);
+      continue;
+    }
+
+    // Match numbered lists like "1. Item" or "- Item"
+    const listMatch = line.match(/^(?:\d+\.|\-|\*|\•)\s+(.+)$/);
+    if (listMatch) {
+      items.push(listMatch[1]);
+      continue;
+    }
+
+    // If line looks like a simple item (short, no punctuation at end, not a sentence)
+    if (line.length < 50 && !line.endsWith('.') && !line.includes(':') && !line.includes('?')) {
+      // Skip lines that look like headers or instructions
+      if (!line.toLowerCase().includes('extract') &&
+          !line.toLowerCase().includes('update') &&
+          !line.toLowerCase().includes('please') &&
+          !line.toLowerCase().includes('section') &&
+          !line.toLowerCase().includes('requirement')) {
+        // Check if it's all caps or starts with a capital (likely a proper name/item)
+        if (/^[A-Z]/.test(line)) {
+          items.push(line);
+        }
+      }
+    }
+  }
+
+  // If we didn't find items in newlines, try comma separation
+  if (items.length === 0) {
+    const commaItems = text.split(',').map(item => item.trim()).filter(item =>
+      item.length > 0 && item.length < 50 && /^[A-Z]/.test(item)
+    );
+    items.push(...commaItems);
+  }
+
+  return items;
+}
+
+/**
+ * Find the target task from the user's request
+ */
+function findTargetTask(tasks: Task[], request: string): Task | undefined {
+  const requestLower = request.toLowerCase();
+
+  // Look for explicit task mentions
+  for (const task of tasks) {
+    const taskNameLower = task.task.toLowerCase();
+
+    // Check for exact or partial matches
+    if (requestLower.includes(taskNameLower) ||
+        requestLower.includes(task.task) ||
+        // Check for key words from the task name
+        taskNameLower.split(' ').some(word => word.length > 4 && requestLower.includes(word))) {
+      return task;
+    }
+  }
+
+  // If no explicit match, look for contextual hints
+  if (requestLower.includes('extract') || requestLower.includes('verify')) {
+    return tasks.find(t =>
+      t.task.toLowerCase().includes('extract') ||
+      t.task.toLowerCase().includes('verify')
+    );
+  }
+
+  if (requestLower.includes('import') || requestLower.includes('plan')) {
+    return tasks.find(t =>
+      t.task.toLowerCase().includes('import') ||
+      t.task.toLowerCase().includes('plan')
+    );
+  }
+
+  return undefined;
+}
