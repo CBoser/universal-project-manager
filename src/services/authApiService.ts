@@ -1,0 +1,190 @@
+/**
+ * Authentication API Service
+ * Handles all authentication-related API calls
+ */
+
+const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  initials: string;
+  color: string;
+  role: string;
+  active: boolean;
+  created_at: string;
+}
+
+interface AuthResponse {
+  success: boolean;
+  user?: User;
+  message?: string;
+  error?: string;
+}
+
+/**
+ * Register a new user
+ */
+export async function register(email: string, password: string, name: string): Promise<User> {
+  const response = await fetch(`${API_URL}/api/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include', // Important for cookies/sessions
+    body: JSON.stringify({ email, password, name }),
+  });
+
+  const data: AuthResponse = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || 'Registration failed');
+  }
+
+  if (!data.user) {
+    throw new Error('No user data received');
+  }
+
+  return data.user;
+}
+
+/**
+ * Login with email and password
+ */
+export async function login(email: string, password: string): Promise<User> {
+  const response = await fetch(`${API_URL}/api/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ email, password }),
+  });
+
+  const data: AuthResponse = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || 'Login failed');
+  }
+
+  if (!data.user) {
+    throw new Error('No user data received');
+  }
+
+  return data.user;
+}
+
+/**
+ * Logout current user
+ */
+export async function logout(): Promise<void> {
+  const response = await fetch(`${API_URL}/api/auth/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+
+  const data: AuthResponse = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || 'Logout failed');
+  }
+}
+
+/**
+ * Get current user profile
+ */
+export async function getCurrentUser(): Promise<User | null> {
+  try {
+    const response = await fetch(`${API_URL}/api/auth/me`, {
+      credentials: 'include',
+    });
+
+    if (response.status === 401) {
+      // User not authenticated
+      return null;
+    }
+
+    const data: AuthResponse = await response.json();
+
+    if (!response.ok || !data.success) {
+      return null;
+    }
+
+    return data.user || null;
+  } catch (error) {
+    console.error('Error fetching current user:', error);
+    return null;
+  }
+}
+
+/**
+ * Check if user is authenticated
+ */
+export async function checkAuth(): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_URL}/api/auth/check`, {
+      credentials: 'include',
+    });
+
+    const data = await response.json();
+    return data.authenticated || false;
+  } catch (error) {
+    console.error('Error checking auth:', error);
+    return false;
+  }
+}
+
+/**
+ * Update user profile
+ */
+export async function updateProfile(updates: {
+  name?: string;
+  initials?: string;
+  color?: string;
+  avatar?: string;
+}): Promise<User> {
+  const response = await fetch(`${API_URL}/api/auth/profile`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(updates),
+  });
+
+  const data: AuthResponse = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || 'Profile update failed');
+  }
+
+  if (!data.user) {
+    throw new Error('No user data received');
+  }
+
+  return data.user;
+}
+
+/**
+ * Change password
+ */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  const response = await fetch(`${API_URL}/api/auth/change-password`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+
+  const data: AuthResponse = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || 'Password change failed');
+  }
+}
