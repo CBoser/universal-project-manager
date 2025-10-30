@@ -234,6 +234,8 @@ Export your project data in multiple formats:
 
 ## 🚢 Deployment
 
+> **🚀 Ready to deploy?** Follow our **[Step-by-Step Render Deployment Guide](./RENDER_DEPLOYMENT_GUIDE.md)** for the easiest deployment experience (15-20 minutes, free tier available).
+
 This project consists of two components that need to be deployed:
 1. **Frontend** - React + Vite static site
 2. **Backend** - Express.js API server (required for Anthropic API calls)
