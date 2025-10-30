@@ -948,7 +948,7 @@ function analyzeIntent(userRequest: string, project: SavedProject) {
 /**
  * Handle document/description update requests
  */
-function handleDocumentUpdate(userRequest: string, project: SavedProject, intent: any): IterationResponse {
+function handleDocumentUpdate(userRequest: string, _project: SavedProject, intent: any): IterationResponse {
   const request = userRequest.toLowerCase();
 
   // Check if they want to update project description
@@ -1019,7 +1019,7 @@ Try: "Add these ${intent.items.length || 'X'} items as subtasks to [task name]:"
 /**
  * Handle bulk subtask addition
  */
-function handleBulkSubtaskAddition(userRequest: string, project: SavedProject, intent: any): IterationResponse {
+function handleBulkSubtaskAddition(_userRequest: string, project: SavedProject, intent: any): IterationResponse {
   const items = intent.items;
   let targetTask = intent.targetTask;
 
@@ -1043,7 +1043,7 @@ function handleBulkSubtaskAddition(userRequest: string, project: SavedProject, i
       success: true,
       changes: [],
       explanation: `✅ I found ${items.length} items in your request:
-${items.slice(0, 10).map((item, i) => `  ${i + 1}. ${item}`).join('\n')}${items.length > 10 ? `\n  ... and ${items.length - 10} more` : ''}
+${items.slice(0, 10).map((item: string, i: number) => `  ${i + 1}. ${item}`).join('\n')}${items.length > 10 ? `\n  ... and ${items.length - 10} more` : ''}
 
 ❓ **Which task should I add these to?**
 
@@ -1072,7 +1072,7 @@ ${suggestedTasks}
     ? taskEstHours / items.length
     : 0.13; // Default ~8 minutes per item
 
-  const subtasks = items.map((item, index) => ({
+  const subtasks = items.map((item: string, index: number) => ({
     id: `subtask_${Date.now()}_${index}`,
     name: item,
     estHours: Math.round(hoursPerSubtask * 100) / 100,
@@ -1098,7 +1098,7 @@ ${suggestedTasks}
 **Total hours:** ${(hoursPerSubtask * items.length).toFixed(2)} hours
 
 **Preview of subtasks (first 10):**
-${items.slice(0, 10).map((item, i) => `  ${i + 1}. ${item} (${hoursPerSubtask.toFixed(2)}h)`).join('\n')}${items.length > 10 ? `\n  ... and ${items.length - 10} more` : ''}
+${items.slice(0, 10).map((item: string, i: number) => `  ${i + 1}. ${item} (${hoursPerSubtask.toFixed(2)}h)`).join('\n')}${items.length > 10 ? `\n  ... and ${items.length - 10} more` : ''}
 
 Click "Apply Changes" to add these subtasks to your project.`,
     previewData: {
@@ -1116,7 +1116,7 @@ Click "Apply Changes" to add these subtasks to your project.`,
 /**
  * Handle marking tasks as complete
  */
-function handleTaskCompletion(project: SavedProject, intent: any): IterationResponse {
+function handleTaskCompletion(_project: SavedProject, intent: any): IterationResponse {
   if (intent.targetTask) {
     return {
       success: true,
@@ -1153,7 +1153,7 @@ function handleTaskCompletion(project: SavedProject, intent: any): IterationResp
 /**
  * Build intelligent fallback response with helpful suggestions
  */
-function buildIntelligentFallback(userRequest: string, project: SavedProject, intent: any): string {
+function buildIntelligentFallback(_userRequest: string, project: SavedProject, intent: any): string {
   const items = intent.items;
   const numbers = intent.numbers;
 

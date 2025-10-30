@@ -12,8 +12,28 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// CORS configuration for development and production
+const allowedOrigins = [
+  'http://localhost:5173',           // Local development
+  'http://localhost:3000',           // Alternative local port
+  process.env.FRONTEND_URL,          // Production frontend URL (set in Render)
+].filter(Boolean); // Remove undefined values
+
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`⚠️  CORS blocked request from origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '10mb' })); // Support large project descriptions
 
 // Get Anthropic client with API key (from env or request)
@@ -177,5 +197,6 @@ app.listen(PORT, () => {
   console.log(`\n🚀 Universal Project Manager Backend`);
   console.log(`📡 Server running on http://localhost:${PORT}`);
   console.log(`🤖 Anthropic API: ${process.env.VITE_ANTHROPIC_API_KEY ? 'Configured ✓' : 'Not configured ✗'}`);
-  console.log(`🔧 Mock mode: ${process.env.VITE_USE_MOCK_AI === 'true' ? 'Enabled' : 'Disabled'}\n`);
+  console.log(`🔧 Mock mode: ${process.env.VITE_USE_MOCK_AI === 'true' ? 'Enabled' : 'Disabled'}`);
+  console.log(`🌐 CORS allowed origins: ${allowedOrigins.length > 0 ? allowedOrigins.join(', ') : 'All origins (development only)'}\n`);
 });
