@@ -2,10 +2,13 @@
 // Universal Project Manager - Backend Server
 // ============================================
 
-import express from 'express';
-import cors from 'cors';
-import Anthropic from '@anthropic-ai/sdk';
-import dotenv from 'dotenv';
+const express = require('express');
+const cors = require('cors');
+const Anthropic = require('@anthropic-ai/sdk');
+const dotenv = require('dotenv');
+const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
+const { pool } = require('./database/db');
 
 dotenv.config();
 
@@ -36,9 +39,48 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' })); // Support large project descriptions
 
-// Get Anthropic client with API key (from env or request)
-function getAnthropicClient(customApiKey) {
-  const apiKey = customApiKey || process.env.VITE_ANTHROPIC_API_KEY;
+// Session middleware with PostgreSQL store
+app.use(session({
+  store: new pgSession({
+    pool: pool,
+    tableName: 'session',
+    createTableIfMissing: false // We create it in schema.sql
+  }),
+  secret: process.env.SESSION_SECRET || 'universal-project-manager-secret-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production', // HTTPS in production
+    sameSite: 'lax'
+  }
+}));
+
+// Import routes
+const authRoutes = require('./routes/auth');
+const apiKeyRoutes = require('./routes/apiKeys');
+const projectRoutes = require('./routes/projects');
+const apiKeyService = require('./services/apiKeyService');
+
+// Mount routes
+app.use('/api/auth', authRoutes);
+app.use('/api/keys', apiKeyRoutes);
+app.use('/api/projects', projectRoutes);
+
+// Get Anthropic client with API key (from env, database, or request)
+async function getAnthropicClient(customApiKey, userId) {
+  let apiKey = customApiKey || process.env.VITE_ANTHROPIC_API_KEY;
+
+  // If user is authenticated and no custom key provided, try to get from database
+  if (!apiKey && userId) {
+    try {
+      apiKey = await apiKeyService.getApiKey(userId, 'anthropic');
+    } catch (error) {
+      console.warn('Could not retrieve API key from database:', error.message);
+    }
+  }
+
   return new Anthropic({
     apiKey: apiKey,
   });
@@ -60,6 +102,7 @@ app.get('/api/ai/available', (req, res) => {
 app.post('/api/ai/analyze', async (req, res) => {
   try {
     const { prompt, model, maxTokens, timeout, apiKey } = req.body;
+    const userId = req.session?.userId;
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
@@ -69,9 +112,10 @@ app.post('/api/ai/analyze', async (req, res) => {
     console.log('  Prompt length:', prompt.length, 'characters');
     console.log('  Model:', model);
     console.log('  Max tokens:', maxTokens);
-    console.log('  Using custom API key:', apiKey ? 'Yes' : 'No (using .env)');
+    console.log('  Authenticated user:', userId ? 'Yes' : 'No');
+    console.log('  Using custom API key:', apiKey ? 'Yes' : 'No');
 
-    const anthropic = getAnthropicClient(apiKey);
+    const anthropic = await getAnthropicClient(apiKey, userId);
 
     const response = await anthropic.messages.create({
       model: model || 'claude-sonnet-4-20250514',
@@ -113,15 +157,17 @@ app.post('/api/ai/analyze', async (req, res) => {
 app.post('/api/ai/report', async (req, res) => {
   try {
     const { prompt, model, maxTokens, apiKey } = req.body;
+    const userId = req.session?.userId;
 
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
     console.log('📊 Generating progress report');
-    console.log('  Using custom API key:', apiKey ? 'Yes' : 'No (using .env)');
+    console.log('  Authenticated user:', userId ? 'Yes' : 'No');
+    console.log('  Using custom API key:', apiKey ? 'Yes' : 'No');
 
-    const anthropic = getAnthropicClient(apiKey);
+    const anthropic = await getAnthropicClient(apiKey, userId);
 
     const response = await anthropic.messages.create({
       model: model || 'claude-sonnet-4-20250514',
@@ -156,6 +202,7 @@ app.post('/api/ai/report', async (req, res) => {
 app.post('/api/ai/test', async (req, res) => {
   try {
     const { apiKey } = req.body;
+    const userId = req.session?.userId;
 
     if (!apiKey) {
       return res.status(400).json({ error: 'API key is required' });
@@ -163,7 +210,7 @@ app.post('/api/ai/test', async (req, res) => {
 
     console.log('🧪 Testing API key...');
 
-    const anthropic = getAnthropicClient(apiKey);
+    const anthropic = await getAnthropicClient(apiKey, userId);
 
     // Make a minimal API call to test the key
     const response = await anthropic.messages.create({
