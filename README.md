@@ -234,27 +234,51 @@ Export your project data in multiple formats:
 
 ## 🚢 Deployment
 
-### Build for Production
+This project consists of two components that need to be deployed:
+1. **Frontend** - React + Vite static site
+2. **Backend** - Express.js API server (required for Anthropic API calls)
+
+### Quick Start - Build for Production
+
 ```bash
+# Build frontend
 npm run build
+
+# Output will be in the 'dist/' directory
 ```
 
-Output will be in the `dist/` directory.
+### Deployment Options
 
-### Deploy to Vercel
-```bash
-npm install -g vercel
-vercel
+We support multiple deployment platforms:
+
+- **Render** (Recommended) - Full-stack support with free tier
+- **Railway** - Excellent for full-stack apps
+- **Vercel + Backend** - Best frontend experience
+- **Netlify + Backend** - Easy static site hosting
+- **AWS EC2** - Full control and scalability
+- **Docker** - Deploy anywhere
+
+### Full Deployment Guide
+
+**📚 See [DEPLOYMENT.md](./DEPLOYMENT.md) for comprehensive deployment instructions** including:
+
+- Step-by-step guides for each platform
+- Environment variable configuration
+- CORS setup
+- Troubleshooting tips
+- Cost comparisons
+- Security best practices
+- Monitoring setup
+
+### Environment Variables Required
+
+Make sure to set these in your deployment platform:
+
+```env
+VITE_ANTHROPIC_API_KEY=your_api_key_here
+VITE_BACKEND_URL=https://your-backend-url.com
+VITE_USE_MOCK_AI=false
 ```
-
-### Deploy to Netlify
-```bash
-npm run build
-# Drag and drop the 'dist' folder to Netlify
-```
-
-### Environment Variables in Production
-Make sure to set `VITE_ANTHROPIC_API_KEY` in your deployment platform's environment variables.
 
 ## 🤝 Contributing
 
