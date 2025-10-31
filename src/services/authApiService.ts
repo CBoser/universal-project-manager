@@ -27,52 +27,70 @@ interface AuthResponse {
  * Register a new user
  */
 export async function register(email: string, password: string, name: string): Promise<User> {
-  const response = await fetch(`${API_URL}/api/auth/register`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include', // Important for cookies/sessions
-    body: JSON.stringify({ email, password, name }),
-  });
+  try {
+    const response = await fetch(`${API_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // Important for cookies/sessions
+      body: JSON.stringify({ email, password, name }),
+    });
 
-  const data: AuthResponse = await response.json();
+    const data: AuthResponse = await response.json();
 
-  if (!response.ok || !data.success) {
-    throw new Error(data.error || 'Registration failed');
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Registration failed');
+    }
+
+    if (!data.user) {
+      throw new Error('No user data received');
+    }
+
+    return data.user;
+  } catch (error: any) {
+    // Handle network errors (server not running, CORS issues, etc.)
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new Error(`Cannot connect to server at ${API_URL}. Please ensure the backend server is running.`);
+    }
+    // Re-throw other errors as-is
+    throw error;
   }
-
-  if (!data.user) {
-    throw new Error('No user data received');
-  }
-
-  return data.user;
 }
 
 /**
  * Login with email and password
  */
 export async function login(email: string, password: string): Promise<User> {
-  const response = await fetch(`${API_URL}/api/auth/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include',
-    body: JSON.stringify({ email, password }),
-  });
+  try {
+    const response = await fetch(`${API_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ email, password }),
+    });
 
-  const data: AuthResponse = await response.json();
+    const data: AuthResponse = await response.json();
 
-  if (!response.ok || !data.success) {
-    throw new Error(data.error || 'Login failed');
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Login failed');
+    }
+
+    if (!data.user) {
+      throw new Error('No user data received');
+    }
+
+    return data.user;
+  } catch (error: any) {
+    // Handle network errors (server not running, CORS issues, etc.)
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new Error(`Cannot connect to server at ${API_URL}. Please ensure the backend server is running.`);
+    }
+    // Re-throw other errors as-is
+    throw error;
   }
-
-  if (!data.user) {
-    throw new Error('No user data received');
-  }
-
-  return data.user;
 }
 
 /**
