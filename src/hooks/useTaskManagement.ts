@@ -239,7 +239,7 @@ export function useTaskManagement(initialTasks: Task[], initialTaskStates: { [ke
     }
 
     const total = task.subtasks.length;
-    const completed = task.subtasks.filter(st => st.status === 'completed').length;
+    const completed = task.subtasks.filter((st: { status: string }) => st.status === 'completed').length;
     const percentage = (completed / total) * 100;
 
     return { completed, total, percentage };
