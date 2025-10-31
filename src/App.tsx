@@ -33,6 +33,8 @@ import { SubtaskList } from './components/SubtaskList';
 import { TimeTrackingModal } from './components/modals/TimeTrackingModal';
 import { UserManagementModal } from './components/modals/UserManagementModal';
 import { TimeLogViewerModal } from './components/modals/TimeLogViewerModal';
+import Login from './components/Login';
+import Register from './components/Register';
 import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator, SavedProject, IterationResponse } from './types';
 import {
   getProject,
@@ -42,6 +44,7 @@ import {
 } from './services/projectStorage';
 import { createTimeLog } from './services/timeLogService';
 import { getActiveUsers } from './services/userService';
+import * as authService from './services/authApiService';
 
 interface MoveHistory {
   taskId: string;
@@ -50,6 +53,114 @@ interface MoveHistory {
 }
 
 function App() {
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [showLogin, setShowLogin] = useState<boolean>(true); // true = login, false = register
+  const [authError, setAuthError] = useState<string>('');
+
+  // Check authentication status on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const user = await authService.getCurrentUser();
+        if (user) {
+          setIsAuthenticated(true);
+          setCurrentUser(user);
+        }
+      } catch (error) {
+        console.error('Error checking auth:', error);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  // Handle login
+  const handleLogin = async (email: string, password: string) => {
+    try {
+      setAuthError('');
+      const user = await authService.login(email, password);
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+    } catch (error: any) {
+      setAuthError(error.message || 'Login failed');
+      throw error;
+    }
+  };
+
+  // Handle registration
+  const handleRegister = async (email: string, password: string, name: string) => {
+    try {
+      setAuthError('');
+      const user = await authService.register(email, password, name);
+      setCurrentUser(user);
+      setIsAuthenticated(true);
+    } catch (error: any) {
+      setAuthError(error.message || 'Registration failed');
+      throw error;
+    }
+  };
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  // Show loading screen while checking authentication
+  if (isCheckingAuth) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: theme.bgPrimary,
+        color: theme.textPrimary
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <h2>Loading...</h2>
+          <p style={{ color: theme.textMuted }}>Checking authentication</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login/register if not authenticated
+  if (!isAuthenticated) {
+    if (showLogin) {
+      return (
+        <Login
+          onLogin={handleLogin}
+          onSwitchToRegister={() => {
+            setShowLogin(false);
+            setAuthError('');
+          }}
+          error={authError}
+        />
+      );
+    } else {
+      return (
+        <Register
+          onRegister={handleRegister}
+          onSwitchToLogin={() => {
+            setShowLogin(true);
+            setAuthError('');
+          }}
+          error={authError}
+        />
+      );
+    }
+  }
+
   // View state: 'dashboard' or 'project'
   const [currentView, setCurrentView] = useState<'dashboard' | 'project'>('dashboard');
   const [currentProjectId, setCurrentProjectIdState] = useState<string | null>(getCurrentProjectId());
@@ -1087,6 +1198,26 @@ function App() {
             }}>
             ⚙️ Settings
           </button>
+
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ color: theme.textSecondary, fontSize: '0.85rem' }}>
+              {currentUser?.name || currentUser?.email}
+            </span>
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: '0.25rem 0.75rem',
+                fontSize: '0.85rem',
+                background: theme.accentRed,
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: '600',
+              }}>
+              🚪 Logout
+            </button>
+          </div>
         </div>
       </header>
 
