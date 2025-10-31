@@ -4,6 +4,7 @@ interface ImportMetaEnv {
   readonly VITE_ANTHROPIC_API_KEY: string
   readonly VITE_USE_MOCK_AI: string
   readonly VITE_EXPORT_API_URL: string
+  readonly VITE_BACKEND_URL: string
 }
 
 interface ImportMeta {
