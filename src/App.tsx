@@ -115,51 +115,10 @@ function App() {
     }
   };
 
-  // Show loading screen while checking authentication
-  if (isCheckingAuth) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: theme.bgPrimary,
-        color: theme.textPrimary
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <h2>Loading...</h2>
-          <p style={{ color: theme.textMuted }}>Checking authentication</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show login/register if not authenticated
-  if (!isAuthenticated) {
-    if (showLogin) {
-      return (
-        <Login
-          onLogin={handleLogin}
-          onSwitchToRegister={() => {
-            setShowLogin(false);
-            setAuthError('');
-          }}
-          error={authError}
-        />
-      );
-    } else {
-      return (
-        <Register
-          onRegister={handleRegister}
-          onSwitchToLogin={() => {
-            setShowLogin(true);
-            setAuthError('');
-          }}
-          error={authError}
-        />
-      );
-    }
-  }
+  // ============================================
+  // ALL HOOKS MUST BE DECLARED BEFORE ANY RETURNS
+  // (React Rules of Hooks requirement)
+  // ============================================
 
   // View state: 'dashboard' or 'project'
   const [currentView, setCurrentView] = useState<'dashboard' | 'project'>('dashboard');
@@ -1020,6 +979,56 @@ function App() {
   const getPhaseColor = (phaseId: string) => {
     return phaseColors[phaseId] || theme.accentBlue;
   };
+
+  // ============================================
+  // CONDITIONAL RENDERING (After all hooks)
+  // ============================================
+
+  // Show loading screen while checking authentication
+  if (isCheckingAuth) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: theme.bgPrimary,
+        color: theme.textPrimary
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <h2>Loading...</h2>
+          <p style={{ color: theme.textMuted }}>Checking authentication</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login/register if not authenticated
+  if (!isAuthenticated) {
+    if (showLogin) {
+      return (
+        <Login
+          onLogin={handleLogin}
+          onSwitchToRegister={() => {
+            setShowLogin(false);
+            setAuthError('');
+          }}
+          error={authError}
+        />
+      );
+    } else {
+      return (
+        <Register
+          onRegister={handleRegister}
+          onSwitchToLogin={() => {
+            setShowLogin(true);
+            setAuthError('');
+          }}
+          error={authError}
+        />
+      );
+    }
+  }
 
   // Conditional rendering: Dashboard vs Project View
   if (currentView === 'dashboard') {
