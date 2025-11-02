@@ -10,7 +10,10 @@ require('dotenv').config();
 const poolConfig = process.env.DATABASE_URL
   ? {
       connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+      // Always use SSL for cloud database connections (Render, Railway, etc.)
+      ssl: {
+        rejectUnauthorized: false
+      },
       max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,

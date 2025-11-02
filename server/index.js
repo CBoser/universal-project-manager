@@ -15,6 +15,11 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy for production deployment (Render, Railway, etc.)
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // CORS configuration for development and production
 const allowedOrigins = [
   'http://localhost:5173',           // Local development
@@ -53,8 +58,11 @@ app.use(session({
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production', // HTTPS in production
-    sameSite: 'lax'
-  }
+    // Use 'none' for cross-origin in production, 'lax' for local development
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+  },
+  // Proxy trust setting for production (Render, Railway, etc.)
+  proxy: process.env.NODE_ENV === 'production'
 }));
 
 // Import routes
@@ -239,10 +247,12 @@ app.post('/api/ai/test', async (req, res) => {
   }
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server - Listen on all interfaces for cloud deployment
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 Universal Project Manager Backend`);
-  console.log(`📡 Server running on http://localhost:${PORT}`);
+  console.log(`📡 Server running on port ${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🗄️  Database: ${process.env.DATABASE_URL ? 'Cloud PostgreSQL (SSL)' : 'Local PostgreSQL'}`);
   console.log(`🤖 Anthropic API: ${process.env.VITE_ANTHROPIC_API_KEY ? 'Configured ✓' : 'Not configured ✗'}`);
   console.log(`🔧 Mock mode: ${process.env.VITE_USE_MOCK_AI === 'true' ? 'Enabled' : 'Disabled'}`);
   console.log(`🌐 CORS allowed origins: ${allowedOrigins.length > 0 ? allowedOrigins.join(', ') : 'All origins (development only)'}\n`);
