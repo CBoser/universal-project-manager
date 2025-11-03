@@ -173,3 +173,66 @@ BEGIN
     RETURN pgp_sym_decrypt(decode(encrypted_key, 'base64'), encryption_key);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Invitations table for team collaboration
+CREATE TABLE IF NOT EXISTS invitations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    token VARCHAR(255) UNIQUE NOT NULL,
+    inviter_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL, -- viewer, editor, owner
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    message TEXT,
+    status VARCHAR(50) DEFAULT 'pending', -- pending, accepted, declined, expired
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    accepted_at TIMESTAMP WITH TIME ZONE,
+    accepted_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_invitations_token ON invitations(token);
+CREATE INDEX IF NOT EXISTS idx_invitations_email ON invitations(email);
+CREATE INDEX IF NOT EXISTS idx_invitations_inviter_id ON invitations(inviter_id);
+CREATE INDEX IF NOT EXISTS idx_invitations_status ON invitations(status);
+
+-- Feedback table for user feedback and feature requests
+CREATE TABLE IF NOT EXISTS feedback (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    user_email VARCHAR(255),
+    user_name VARCHAR(255),
+    feedback_type VARCHAR(100) NOT NULL, -- bug, feature, improvement, other
+    content TEXT NOT NULL,
+    priority VARCHAR(50) DEFAULT 'medium', -- low, medium, high, critical
+    status VARCHAR(50) DEFAULT 'new', -- new, reviewing, planned, in_progress, completed, closed
+    admin_notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_user_id ON feedback(user_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_type ON feedback(feedback_type);
+CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status);
+CREATE INDEX IF NOT EXISTS idx_feedback_priority ON feedback(priority);
+
+-- Admin configuration table for system settings
+CREATE TABLE IF NOT EXISTS admin_config (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    key VARCHAR(255) UNIQUE NOT NULL,
+    value TEXT,
+    value_type VARCHAR(50) DEFAULT 'string', -- string, number, boolean, json
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_config_key ON admin_config(key);
+
+-- Trigger for feedback updated_at
+CREATE TRIGGER update_feedback_updated_at BEFORE UPDATE ON feedback
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger for admin_config updated_at
+CREATE TRIGGER update_admin_config_updated_at BEFORE UPDATE ON admin_config
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
