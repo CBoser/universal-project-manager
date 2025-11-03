@@ -111,3 +111,341 @@ select:focus {
   display: inline-block;
   animation: spin 1s linear infinite;
 }
+
+/* ============================================
+   RESPONSIVE & MOBILE STYLES
+   ============================================ */
+
+/* iOS-specific: Handle safe areas for notches and home indicator */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
+}
+
+/* Remove tap highlight on iOS */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* Mobile: < 640px */
+@media (max-width: 639px) {
+  /* Reduce body padding on mobile */
+  body {
+    font-size: 14px;
+  }
+
+  /* Smaller scrollbars on mobile */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  /* Hide scrollbar on mobile for cleaner look */
+  .hide-scrollbar-mobile {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar-mobile::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Full-width containers on mobile */
+  .container {
+    width: 100%;
+    padding: 0 1rem;
+  }
+
+  /* Stack elements vertically on mobile */
+  .responsive-stack {
+    flex-direction: column !important;
+  }
+
+  /* Hide on mobile */
+  .hide-mobile {
+    display: none !important;
+  }
+
+  /* Show only on mobile */
+  .show-mobile {
+    display: block !important;
+  }
+
+  /* Table responsiveness - force card view */
+  table.responsive-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Touch-friendly form inputs */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  textarea,
+  select {
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
+    padding: 12px;
+    min-height: 44px;
+  }
+
+  /* Larger checkboxes and radio buttons for touch */
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+  }
+
+  /* Modal adjustments for mobile */
+  .modal-content {
+    width: 95% !important;
+    max-width: 95% !important;
+    max-height: 90vh !important;
+    margin: 5vh auto;
+  }
+
+  /* Button adjustments */
+  button {
+    min-height: 44px;
+    padding: 12px 20px;
+  }
+}
+
+/* Tablet: 640px - 1023px */
+@media (min-width: 640px) and (max-width: 1023px) {
+  /* Hide on tablet */
+  .hide-tablet {
+    display: none !important;
+  }
+
+  /* Show only on tablet */
+  .show-tablet {
+    display: block !important;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 768px;
+    padding: 0 1.5rem;
+  }
+}
+
+/* Desktop: >= 1024px */
+@media (min-width: 1024px) {
+  /* Hide on desktop */
+  .hide-desktop {
+    display: none !important;
+  }
+
+  /* Show only on desktop */
+  .show-desktop {
+    display: block !important;
+  }
+}
+
+/* Touch devices only */
+@media (hover: none) and (pointer: coarse) {
+  /* Increase all touch targets */
+  button,
+  a,
+  input[type="submit"],
+  input[type="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Remove hover states on touch devices */
+  button:hover,
+  a:hover {
+    /* Reset hover - will use :active instead */
+  }
+
+  /* Add active/pressed states for touch feedback */
+  button:active,
+  a:active {
+    opacity: 0.8;
+    transform: scale(0.98);
+  }
+}
+
+/* Hover-capable devices (desktop with mouse) */
+@media (hover: hover) and (pointer: fine) {
+  /* Enable hover states only on devices with mouse */
+  .hover-effect:hover {
+    opacity: 0.9;
+    transition: opacity 0.2s ease;
+  }
+}
+
+/* Landscape orientation on mobile */
+@media (max-width: 1023px) and (orientation: landscape) {
+  /* Adjust for landscape mode */
+  .modal-content {
+    max-height: 85vh !important;
+  }
+
+  /* Reduce vertical spacing in landscape */
+  .spacing-vertical {
+    margin-top: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+}
+
+/* Dark mode support (respects system preference) */
+@media (prefers-color-scheme: dark) {
+  /* Already dark by default, but can add overrides if needed */
+}
+
+/* Light mode support (if needed in future) */
+@media (prefers-color-scheme: light) {
+  /* Add light mode styles if implementing a light theme */
+}
+
+/* Reduced motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* High contrast mode for accessibility */
+@media (prefers-contrast: high) {
+  * {
+    border-width: 2px !important;
+  }
+}
+
+/* ============================================
+   iOS SPECIFIC FIXES
+   ============================================ */
+
+/* Fix for iOS Safari bottom bar overlap */
+@supports (-webkit-touch-callout: none) {
+  /* iOS only */
+  .ios-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .ios-safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Fix for iOS input zoom */
+  select,
+  textarea,
+  input[type="text"],
+  input[type="password"],
+  input[type="datetime"],
+  input[type="datetime-local"],
+  input[type="date"],
+  input[type="month"],
+  input[type="time"],
+  input[type="week"],
+  input[type="number"],
+  input[type="email"],
+  input[type="url"],
+  input[type="search"],
+  input[type="tel"] {
+    font-size: 16px; /* Prevents auto-zoom on iOS */
+  }
+
+  /* Fix for iOS momentum scrolling */
+  .momentum-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+/* Flexbox utilities */
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.gap-sm {
+  gap: 0.5rem;
+}
+
+.gap-md {
+  gap: 1rem;
+}
+
+.gap-lg {
+  gap: 1.5rem;
+}
+
+/* Spacing utilities */
+.p-sm {
+  padding: 0.5rem;
+}
+
+.p-md {
+  padding: 1rem;
+}
+
+.p-lg {
+  padding: 1.5rem;
+}
+
+.m-sm {
+  margin: 0.5rem;
+}
+
+.m-md {
+  margin: 1rem;
+}
+
+.m-lg {
+  margin: 1.5rem;
+}
+
+/* Responsive spacing */
+@media (max-width: 639px) {
+  .p-responsive {
+    padding: 0.75rem;
+  }
+
+  .m-responsive {
+    margin: 0.75rem;
+  }
+}
+
+@media (min-width: 640px) {
+  .p-responsive {
+    padding: 1.5rem;
+  }
+
+  .m-responsive {
+    margin: 1.5rem;
+  }
+}
