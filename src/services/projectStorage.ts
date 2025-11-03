@@ -3,9 +3,26 @@
 // ============================================
 
 import { SavedProject, ProjectMeta } from '../types';
+import * as projectApi from './projectApiService';
 
 const PROJECTS_STORAGE_KEY = 'upm_projects';
 const CURRENT_PROJECT_KEY = 'upm_current_project_id';
+const SYNC_ENABLED_KEY = 'upm_sync_enabled';
+
+/**
+ * Check if database sync is enabled
+ */
+export function isSyncEnabled(): boolean {
+  const stored = localStorage.getItem(SYNC_ENABLED_KEY);
+  return stored === 'true';
+}
+
+/**
+ * Enable or disable database sync
+ */
+export function setSyncEnabled(enabled: boolean): void {
+  localStorage.setItem(SYNC_ENABLED_KEY, enabled.toString());
+}
 
 /**
  * Get all projects from localStorage
@@ -18,6 +35,51 @@ export function getAllProjects(): SavedProject[] {
   } catch (error) {
     console.error('Error loading projects:', error);
     return [];
+  }
+}
+
+/**
+ * Sync projects from server to localStorage
+ * This should be called after login to fetch user's projects from the database
+ */
+export async function syncFromServer(): Promise<SavedProject[]> {
+  try {
+    if (!isSyncEnabled()) {
+      console.log('Sync is disabled, skipping server sync');
+      return getAllProjects();
+    }
+
+    console.log('Syncing projects from server...');
+    const serverProjects = await projectApi.getAllProjects(false);
+
+    // Store in localStorage
+    localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(serverProjects));
+
+    console.log(`Synced ${serverProjects.length} projects from server`);
+    return serverProjects;
+  } catch (error: any) {
+    console.error('Error syncing from server:', error);
+    // Fall back to localStorage on error
+    return getAllProjects();
+  }
+}
+
+/**
+ * Sync a single project to server
+ */
+export async function syncToServer(project: SavedProject): Promise<void> {
+  try {
+    if (!isSyncEnabled()) {
+      console.log('Sync is disabled, skipping server sync');
+      return;
+    }
+
+    console.log(`Syncing project ${project.meta.id} to server...`);
+    await projectApi.syncProject(project);
+    console.log(`Successfully synced project ${project.meta.id}`);
+  } catch (error: any) {
+    console.error('Error syncing to server:', error);
+    // Don't throw - we want to save locally even if server sync fails
   }
 }
 
@@ -53,6 +115,11 @@ export function saveProject(project: SavedProject): void {
     }
 
     localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
+
+    // Async sync to server (don't wait for it)
+    syncToServer(project).catch(err => {
+      console.error('Background sync failed:', err);
+    });
   } catch (error) {
     console.error('Error saving project:', error);
     throw error;
@@ -71,6 +138,13 @@ export function deleteProject(projectId: string): void {
     // If this was the current project, clear it
     if (getCurrentProjectId() === projectId) {
       setCurrentProjectId(null);
+    }
+
+    // Async sync to server (don't wait for it)
+    if (isSyncEnabled()) {
+      projectApi.deleteProject(projectId).catch(err => {
+        console.error('Failed to delete project from server:', err);
+      });
     }
   } catch (error) {
     console.error('Error deleting project:', error);
