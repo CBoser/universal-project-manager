@@ -25,7 +25,7 @@ export const MobileTaskCard: React.FC<MobileTaskCardProps> = ({
   onStatusChange,
   onDelete,
 }) => {
-  const status = taskState?.status || 'not-started';
+  const status = taskState?.status || 'pending';
 
   // Get status color
   const statusColor = getStatusColor(status);
@@ -146,7 +146,7 @@ export const MobileTaskCard: React.FC<MobileTaskCardProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ color: theme.textMuted, fontSize: '0.85rem' }}>☑️</span>
             <span style={{ color: theme.textSecondary, fontSize: '0.85rem' }}>
-              {task.subtasks.filter(st => st.completed).length} / {task.subtasks.length} subtasks
+              {task.subtasks.filter(st => st.status === 'completed').length} / {task.subtasks.length} subtasks
             </span>
           </div>
         )}
@@ -212,7 +212,7 @@ export const MobileTaskCard: React.FC<MobileTaskCardProps> = ({
           <button
             onClick={() => {
               // Cycle through statuses
-              const statuses: TaskStatus[] = ['not-started', 'in-progress', 'complete', 'blocked'];
+              const statuses: TaskStatus[] = ['pending', 'in-progress', 'complete', 'blocked'];
               const currentIndex = statuses.indexOf(status);
               const nextStatus = statuses[(currentIndex + 1) % statuses.length];
               onStatusChange(nextStatus);
@@ -277,9 +277,9 @@ export const MobileTaskCard: React.FC<MobileTaskCardProps> = ({
 };
 
 // Helper function to get status color
-function getStatusColor(status: TaskStatus): string {
+function getStatusColor(status: TaskStatus | 'pending'): string {
   switch (status) {
-    case 'not-started':
+    case 'pending':
       return theme.statusPending;
     case 'in-progress':
       return theme.statusInProgress;

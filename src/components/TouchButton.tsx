@@ -232,14 +232,16 @@ export const IconButton: React.FC<IconButtonProps> = ({
       style={buttonStyle}
       onMouseDown={!isTouch ? handlePress : undefined}
       onMouseUp={!isTouch ? handleRelease : undefined}
-      onMouseLeave={!isTouch ? handleRelease : undefined}
       onTouchStart={isTouch ? handlePress : undefined}
       onTouchEnd={isTouch ? handleRelease : undefined}
       onMouseEnter={!disabled && !isTouch ? (e) => {
         e.currentTarget.style.background = theme.hover;
       } : undefined}
-      onMouseLeave={!disabled && !isTouch ? (e) => {
-        e.currentTarget.style.background = 'transparent';
+      onMouseLeave={!isTouch ? (e) => {
+        handleRelease();
+        if (!disabled) {
+          e.currentTarget.style.background = 'transparent';
+        }
       } : undefined}
     >
       {icon}

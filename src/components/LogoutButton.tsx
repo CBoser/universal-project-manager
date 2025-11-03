@@ -104,14 +104,16 @@ export const LogoutButton: React.FC<LogoutButtonProps> = ({
       style={getStyles()}
       onMouseDown={!isTouch ? handlePress : undefined}
       onMouseUp={!isTouch ? handleRelease : undefined}
-      onMouseLeave={!isTouch ? handleRelease : undefined}
       onTouchStart={isTouch ? handlePress : undefined}
       onTouchEnd={isTouch ? handleRelease : undefined}
       onMouseEnter={!isTouch && variant === 'icon' ? (e) => {
         e.currentTarget.style.background = theme.hover;
       } : undefined}
-      onMouseLeave={!isTouch && variant === 'icon' ? (e) => {
-        e.currentTarget.style.background = 'transparent';
+      onMouseLeave={!isTouch ? (e) => {
+        handleRelease();
+        if (variant === 'icon') {
+          e.currentTarget.style.background = 'transparent';
+        }
       } : undefined}
       aria-label="Logout"
       title="Logout"
