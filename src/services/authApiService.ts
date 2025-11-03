@@ -5,6 +5,12 @@
 
 const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 
+// Log the API URL on load to help with debugging
+console.log('[AuthAPI] Using backend URL:', API_URL);
+if (!import.meta.env.VITE_BACKEND_URL) {
+  console.warn('[AuthAPI] VITE_BACKEND_URL not set, using default:', API_URL);
+}
+
 interface User {
   id: string;
   email: string;
