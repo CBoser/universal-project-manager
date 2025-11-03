@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { theme } from './config/theme';
 import { DEFAULT_PROJECT_META, DEFAULT_CATEGORIES } from './config/constants';
 import { useTaskManagement } from './hooks/useTaskManagement';
+import { useIsMobileOrTablet } from './hooks/useMediaQuery';
 import { storageService } from './services/storageService';
 import { aiService } from './services/aiService';
 import { calculateProgress, calculatePercentComplete } from './utils/calculations';
@@ -35,6 +36,7 @@ import { UserManagementModal } from './components/modals/UserManagementModal';
 import { TimeLogViewerModal } from './components/modals/TimeLogViewerModal';
 import Login from './components/Login';
 import Register from './components/Register';
+import { MobileNav, MobileTaskCard } from './components/mobile';
 import type { ProjectMeta, AIAnalysisRequest, TaskStatus, Task, Collaborator, SavedProject, IterationResponse } from './types';
 import {
   getProject,
@@ -146,6 +148,9 @@ function App() {
   // View state: 'dashboard' or 'project'
   const [currentView, setCurrentView] = useState<'dashboard' | 'project'>('dashboard');
   const [currentProjectId, setCurrentProjectIdState] = useState<string | null>(getCurrentProjectId());
+
+  // Mobile detection
+  const isMobile = useIsMobileOrTablet();
 
   // Load saved data or use defaults
   const savedData = storageService.load();
@@ -1119,27 +1124,30 @@ function App() {
       <div style={{
         minHeight: '100vh',
         background: theme.bgPrimary,
-        padding: '2rem',
+        padding: isMobile ? '1rem' : '2rem',
+        paddingBottom: isMobile ? '100px' : '2rem', // Extra space for mobile nav
       }}>
         {/* Header with back button */}
-        <header style={{ marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
-          <button
-            onClick={handleBackToDashboard}
-            style={{
-              padding: '0.5rem 1rem',
-              background: theme.accentBlue,
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '0.9rem',
-              fontWeight: '600',
-            }}>
-            ← Back to Dashboard
-          </button>
+        <header style={{ marginBottom: isMobile ? '1rem' : '2rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '0.5rem' : '1rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+          {!isMobile && (
+            <button
+              onClick={handleBackToDashboard}
+              style={{
+                padding: '0.5rem 1rem',
+                background: theme.accentBlue,
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                fontWeight: '600',
+              }}>
+              ← Back to Dashboard
+            </button>
+          )}
           <h1 style={{
-            fontSize: '2.5rem',
+            fontSize: isMobile ? '1.5rem' : '2.5rem',
             margin: 0,
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             WebkitBackgroundClip: 'text',
@@ -1254,7 +1262,8 @@ function App() {
         </div>
       </header>
 
-      {/* Action Buttons - Hybrid Layout */}
+      {/* Action Buttons - Hybrid Layout (Hidden on mobile) */}
+      {!isMobile && (
       <div style={{ marginBottom: '2rem' }}>
         {/* Row 1 - Primary Actions */}
         <div style={{
@@ -1447,13 +1456,14 @@ function App() {
           </button>
         </div>
       </div>
+      )}
 
       {/* Project Info */}
       <div style={{
         background: theme.bgSecondary,
-        padding: '1.5rem',
+        padding: isMobile ? '1rem' : '1.5rem',
         borderRadius: '12px',
-        marginBottom: '2rem',
+        marginBottom: isMobile ? '1rem' : '2rem',
         border: `1px solid ${theme.border}`,
       }}>
         <h2 style={{ marginBottom: '1rem', color: theme.textPrimary }}>
@@ -1484,9 +1494,9 @@ function App() {
       {/* Progress Overview */}
       <div style={{
         background: theme.bgSecondary,
-        padding: '1.5rem',
+        padding: isMobile ? '1rem' : '1.5rem',
         borderRadius: '12px',
-        marginBottom: '2rem',
+        marginBottom: isMobile ? '1rem' : '2rem',
         border: `1px solid ${theme.border}`,
       }}>
         <h3 style={{ marginBottom: '1rem', color: theme.textPrimary }}>Progress Overview</h3>
@@ -1611,9 +1621,10 @@ function App() {
       {/* Tasks List */}
       <div style={{
         background: theme.bgSecondary,
-        padding: '1.5rem',
+        padding: isMobile ? '1rem' : '1.5rem',
         borderRadius: '12px',
         border: `1px solid ${theme.border}`,
+        marginBottom: isMobile ? '80px' : '0', // Add space for mobile nav
       }}>
         <h3 style={{ marginBottom: '1rem', color: theme.textPrimary }}>
           Tasks {filteredTasks.length !== tasks.length && `(${filteredTasks.length} of ${tasks.length})`}
@@ -1630,7 +1641,51 @@ function App() {
               }
             </p>
           </div>
+        ) : isMobile ? (
+          // Mobile card view
+          <div>
+            {filteredTasks.map((task) => {
+              const state = taskStates[task.id] || {};
+              return (
+                <React.Fragment key={task.id}>
+                  <MobileTaskCard
+                    task={task}
+                    taskState={state}
+                    phaseColor={getPhaseColor(task.phase)}
+                    onStatusChange={handleStatusChange}
+                    onCheckboxChange={handleCheckboxChange}
+                    onEdit={handleEditTask}
+                    onDelete={handleDeleteTask}
+                    onToggleSubtasks={handleToggleSubtasks}
+                    isSubtasksExpanded={expandedSubtasks.has(task.id)}
+                  />
+                  {/* Expanded Subtask List for Mobile */}
+                  {task.subtasks && task.subtasks.length > 0 && expandedSubtasks.has(task.id) && (
+                    <div style={{
+                      marginTop: '-12px',
+                      marginBottom: '12px',
+                      padding: '16px',
+                      background: theme.bgTertiary,
+                      borderRadius: '0 0 16px 16px',
+                      borderTop: `1px solid ${theme.border}`,
+                    }}>
+                      <SubtaskList
+                        subtasks={task.subtasks}
+                        onSubtaskToggle={(subtaskId) => toggleSubtaskStatus(task.id, subtaskId)}
+                        onLogTime={(subtaskId, hours) => handleLogSubtaskTime(task.id, subtaskId, hours)}
+                        onSubtaskEdit={(subtaskId, updates) => handleEditSubtask(task.id, subtaskId, updates)}
+                        onSubtaskDelete={(subtaskId) => handleDeleteSubtask(task.id, subtaskId)}
+                        showTimeTracking={true}
+                        editable={true}
+                      />
+                    </div>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
         ) : (
+          // Desktop table view
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -2031,13 +2086,25 @@ function App() {
       />
 
       {/* Footer */}
-      <footer style={{ marginTop: '3rem', textAlign: 'center', color: theme.textMuted, fontSize: '0.9rem' }}>
+      <footer style={{ marginTop: '3rem', textAlign: 'center', color: theme.textMuted, fontSize: '0.9rem', marginBottom: isMobile ? '80px' : '0' }}>
         <p>Built with ❤️ using React, TypeScript, and Claude AI</p>
         <p style={{ marginTop: '0.5rem' }}>
           Universal Project Manager - Works for ANY type of project
         </p>
       </footer>
       </div>
+
+      {/* Mobile Navigation */}
+      {isMobile && (
+        <MobileNav
+          onAddTask={() => setShowAddTaskModal(true)}
+          onOpenMenu={() => setShowProjectInfoModal(true)}
+          onSave={() => handleSave(true)}
+          onBack={handleBackToDashboard}
+          isSaving={isSaving}
+          showBackButton={true}
+        />
+      )}
     </>
   );
 }
