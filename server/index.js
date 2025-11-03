@@ -69,12 +69,16 @@ app.use(session({
 const authRoutes = require('./routes/auth');
 const apiKeyRoutes = require('./routes/apiKeys');
 const projectRoutes = require('./routes/projects');
+const invitationRoutes = require('./routes/invitations');
+const adminRoutes = require('./routes/admin');
 const apiKeyService = require('./services/apiKeyService');
 
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/keys', apiKeyRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/invitations', invitationRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Get Anthropic client with API key (from env, database, or request)
 async function getAnthropicClient(customApiKey, userId) {
