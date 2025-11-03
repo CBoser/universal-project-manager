@@ -41,6 +41,8 @@ import {
   saveProject as saveProjectToStorage,
   getCurrentProjectId,
   setCurrentProjectId,
+  syncFromServer,
+  setSyncEnabled,
 } from './services/projectStorage';
 import { createTimeLog } from './services/timeLogService';
 import { getActiveUsers } from './services/userService';
@@ -59,6 +61,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showLogin, setShowLogin] = useState<boolean>(true); // true = login, false = register
   const [authError, setAuthError] = useState<string>('');
+  const [projectSyncKey, setProjectSyncKey] = useState<number>(0); // Used to trigger Dashboard refresh
 
   // Check authentication status on mount
   useEffect(() => {
@@ -68,6 +71,12 @@ function App() {
         if (user) {
           setIsAuthenticated(true);
           setCurrentUser(user);
+
+          // Enable sync and load projects from server for already logged-in users
+          setSyncEnabled(true);
+          await syncFromServer();
+          setProjectSyncKey(prev => prev + 1); // Trigger Dashboard refresh
+          console.log('Projects synced from server on app load');
         }
       } catch (error) {
         console.error('Error checking auth:', error);
@@ -85,6 +94,12 @@ function App() {
       const user = await authService.login(email, password);
       setCurrentUser(user);
       setIsAuthenticated(true);
+
+      // Enable database sync and load projects from server
+      setSyncEnabled(true);
+      await syncFromServer();
+      setProjectSyncKey(prev => prev + 1); // Trigger Dashboard refresh
+      console.log('Projects synced from server after login');
     } catch (error: any) {
       setAuthError(error.message || 'Login failed');
       throw error;
@@ -98,6 +113,10 @@ function App() {
       const user = await authService.register(email, password, name);
       setCurrentUser(user);
       setIsAuthenticated(true);
+
+      // Enable database sync for new users
+      setSyncEnabled(true);
+      console.log('Database sync enabled for new user');
     } catch (error: any) {
       setAuthError(error.message || 'Registration failed');
       throw error;
@@ -110,6 +129,10 @@ function App() {
       await authService.logout();
       setIsAuthenticated(false);
       setCurrentUser(null);
+
+      // Disable sync when logging out
+      setSyncEnabled(false);
+      console.log('Database sync disabled after logout');
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -1041,6 +1064,7 @@ function App() {
           padding: '2rem',
         }}>
           <Dashboard
+            key={projectSyncKey}
             onOpenProject={handleOpenProject}
             onNewProject={handleNewProject}
           />
