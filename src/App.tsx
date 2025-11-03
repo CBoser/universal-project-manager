@@ -43,10 +43,13 @@ import {
   setCurrentProjectId,
   syncFromServer,
   setSyncEnabled,
+  setSyncStatusCallback,
+  getLastSyncTime,
 } from './services/projectStorage';
 import { createTimeLog } from './services/timeLogService';
 import { getActiveUsers } from './services/userService';
 import * as authService from './services/authApiService';
+import { SyncIndicator, type SyncStatus } from './components/SyncIndicator';
 
 interface MoveHistory {
   taskId: string;
@@ -63,6 +66,32 @@ function App() {
   const [authError, setAuthError] = useState<string>('');
   const [projectSyncKey, setProjectSyncKey] = useState<number>(0); // Used to trigger Dashboard refresh
 
+  // Sync status state
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const [syncError, setSyncError] = useState<string>('');
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(getLastSyncTime());
+
+  // Register sync status callback
+  useEffect(() => {
+    setSyncStatusCallback((status, error) => {
+      setSyncStatus(status);
+      if (error) {
+        setSyncError(error);
+      } else {
+        setSyncError('');
+      }
+      if (status === 'synced') {
+        setLastSyncTime(new Date().toISOString());
+        // Refresh Dashboard by incrementing key
+        setProjectSyncKey(prev => prev + 1);
+      }
+    });
+
+    return () => {
+      setSyncStatusCallback(null);
+    };
+  }, []);
+
   // Check authentication status on mount
   useEffect(() => {
     const checkAuth = async () => {
@@ -75,7 +104,6 @@ function App() {
           // Enable sync and load projects from server for already logged-in users
           setSyncEnabled(true);
           await syncFromServer();
-          setProjectSyncKey(prev => prev + 1); // Trigger Dashboard refresh
           console.log('Projects synced from server on app load');
         }
       } catch (error) {
@@ -98,7 +126,6 @@ function App() {
       // Enable database sync and load projects from server
       setSyncEnabled(true);
       await syncFromServer();
-      setProjectSyncKey(prev => prev + 1); // Trigger Dashboard refresh
       console.log('Projects synced from server after login');
     } catch (error: any) {
       setAuthError(error.message || 'Login failed');
@@ -1160,6 +1187,7 @@ function App() {
           gap: '1rem',
           fontSize: '0.85rem',
           color: theme.textMuted,
+          flexWrap: 'wrap',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {isSaving ? (
@@ -1179,6 +1207,15 @@ function App() {
               </>
             )}
           </div>
+
+          {/* Sync Status Indicator */}
+          {isAuthenticated && (
+            <SyncIndicator
+              status={syncStatus}
+              lastSyncTime={lastSyncTime || undefined}
+              error={syncError}
+            />
+          )}
 
           {/* Autosave Settings */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
