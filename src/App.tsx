@@ -98,18 +98,25 @@ function App() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        console.log('[Auth] Checking authentication status...');
         const user = await authService.getCurrentUser();
         if (user) {
+          console.log('[Auth] User authenticated:', user.email);
           setIsAuthenticated(true);
           setCurrentUser(user);
 
           // Enable sync and load projects from server for already logged-in users
           setSyncEnabled(true);
           await syncFromServer();
-          console.log('Projects synced from server on app load');
+          console.log('[Auth] Projects synced from server on app load');
+        } else {
+          console.log('[Auth] No authenticated user found');
         }
       } catch (error) {
-        console.error('Error checking auth:', error);
+        console.error('[Auth] Error checking authentication:', error);
+        // Ensure we show login screen on error
+        setIsAuthenticated(false);
+        setCurrentUser(null);
       } finally {
         setIsCheckingAuth(false);
       }

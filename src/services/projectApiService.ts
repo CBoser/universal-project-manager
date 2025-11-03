@@ -7,6 +7,12 @@ import type { SavedProject, Task, Phase } from '../types';
 
 const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
 
+// Log the API URL on load to help with debugging
+console.log('[ProjectAPI] Using backend URL:', API_URL);
+if (!import.meta.env.VITE_BACKEND_URL) {
+  console.warn('[ProjectAPI] VITE_BACKEND_URL not set, using default:', API_URL);
+}
+
 interface ApiResponse<T = any> {
   success: boolean;
   message?: string;
