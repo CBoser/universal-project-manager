@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { theme } from '../config/theme';
-import { TouchButton } from './TouchButton';
+import { TouchButton } from './mobile';
 
 interface DeveloperDashboardProps {
   onClose: () => void;
@@ -339,7 +339,7 @@ const APIKeysTab: React.FC<{ keys: any[]; onRefresh: () => void }> = ({ keys, on
 };
 
 // AI Config Tab
-const AIConfigTab: React.FC<{ config: any; onRefresh: () => void }> = ({ config, onRefresh }) => (
+const AIConfigTab: React.FC<{ config: any; onRefresh: () => void }> = () => (
   <div>
     <h2 style={{ color: theme.textPrimary, marginBottom: '1rem' }}>AI Assistant Configuration</h2>
     <p style={{ color: theme.textMuted, marginBottom: '2rem' }}>
@@ -350,7 +350,7 @@ const AIConfigTab: React.FC<{ config: any; onRefresh: () => void }> = ({ config,
 );
 
 // Feedback Tab
-const FeedbackTab: React.FC<{ feedback: any[]; onRefresh: () => void }> = ({ feedback, onRefresh }) => (
+const FeedbackTab: React.FC<{ feedback: any[]; onRefresh: () => void }> = ({ feedback }) => (
   <div>
     <h2 style={{ color: theme.textPrimary, marginBottom: '1rem' }}>User Feedback</h2>
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

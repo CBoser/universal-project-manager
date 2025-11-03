@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { theme } from '../../config/theme';
 import Modal from '../Modal';
-import { TouchButton } from '../TouchButton';
+import { TouchButton } from '../mobile';
 
 interface TeamInvitationModalProps {
   isOpen: boolean;
@@ -92,7 +92,7 @@ export const TeamInvitationModal: React.FC<TeamInvitationModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="Invite Team Member">
+    <Modal show={isOpen} onClose={handleClose} title="Invite Team Member">
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
         {/* Project Info */}
         {projectName && (
