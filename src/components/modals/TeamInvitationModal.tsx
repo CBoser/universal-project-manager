@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { theme } from '../../config/theme';
 import Modal from '../Modal';
-import { TouchButton } from '../TouchButton';
+import { TouchButton } from '../mobile';
 
 interface TeamInvitationModalProps {
   isOpen: boolean;

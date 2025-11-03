@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { theme } from '../config/theme';
-import { TouchButton } from './TouchButton';
+import { TouchButton } from './mobile';
 
 interface DeveloperDashboardProps {
   onClose: () => void;
