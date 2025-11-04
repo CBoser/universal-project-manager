@@ -120,24 +120,30 @@ export async function logout(): Promise<void> {
  */
 export async function getCurrentUser(): Promise<User | null> {
   try {
+    console.log('[AuthAPI] Fetching current user from:', `${API_URL}/api/auth/me`);
     const response = await fetch(`${API_URL}/api/auth/me`, {
       credentials: 'include',
     });
 
+    console.log('[AuthAPI] Response status:', response.status);
+
     if (response.status === 401) {
       // User not authenticated
+      console.log('[AuthAPI] User not authenticated (401)');
       return null;
     }
 
     const data: AuthResponse = await response.json();
+    console.log('[AuthAPI] Response data:', { success: data.success, hasUser: !!data.user });
 
     if (!response.ok || !data.success) {
+      console.log('[AuthAPI] Auth check failed:', data.error || 'Unknown error');
       return null;
     }
 
     return data.user || null;
   } catch (error) {
-    console.error('Error fetching current user:', error);
+    console.error('[AuthAPI] Error fetching current user:', error);
     return null;
   }
 }
