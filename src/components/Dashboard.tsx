@@ -20,9 +20,11 @@ import { TimeLogViewerModal } from './modals/TimeLogViewerModal';
 interface DashboardProps {
   onOpenProject: (projectId: string) => void;
   onNewProject: () => void;
+  currentUser?: { name: string; email: string; initials?: string; color?: string } | null;
+  onLogout?: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onOpenProject, onNewProject }) => {
+const Dashboard: React.FC<DashboardProps> = ({ onOpenProject, onNewProject, currentUser, onLogout }) => {
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [filter, setFilter] = useState<ProjectStatus | 'all'>('all');
   const [showArchived, setShowArchived] = useState(false);
@@ -138,6 +140,27 @@ const Dashboard: React.FC<DashboardProps> = ({ onOpenProject, onNewProject }) =>
             <span>+</span>
             <span>New Project</span>
           </button>
+          {/* User info and logout */}
+          {currentUser && (
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span style={{ color: '#7f8c8d', fontSize: '0.9rem', fontWeight: '500' }}>
+                {currentUser.name || currentUser.email}
+              </span>
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  style={{
+                    ...styles.btnTool,
+                    backgroundColor: '#e74c3c',
+                    color: '#fff',
+                    padding: '0.5rem 1rem',
+                  }}
+                >
+                  🚪 Logout
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

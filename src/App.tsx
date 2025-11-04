@@ -1128,6 +1128,8 @@ function App() {
             key={projectSyncKey}
             onOpenProject={handleOpenProject}
             onNewProject={handleNewProject}
+            currentUser={currentUser}
+            onLogout={handleLogout}
           />
         </div>
 
