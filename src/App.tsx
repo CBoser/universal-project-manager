@@ -139,16 +139,21 @@ function App() {
   // Handle login
   const handleLogin = async (email: string, password: string) => {
     try {
+      console.log('[Auth] Attempting login for:', email);
       setAuthError('');
       const user = await authService.login(email, password);
+      console.log('[Auth] Login successful, user:', user.email);
       setCurrentUser(user);
       setIsAuthenticated(true);
 
       // Enable database sync and load projects from server
+      console.log('[Auth] Enabling sync and fetching projects...');
       setSyncEnabled(true);
       await syncFromServer();
-      console.log('Projects synced from server after login');
+      console.log('[Auth] Projects synced from server after login');
+      console.log('[Auth] Login flow complete, showing dashboard');
     } catch (error: any) {
+      console.error('[Auth] Login failed:', error);
       setAuthError(error.message || 'Login failed');
       throw error;
     }
@@ -157,15 +162,20 @@ function App() {
   // Handle registration
   const handleRegister = async (email: string, password: string, name: string) => {
     try {
+      console.log('[Auth] Attempting registration for:', email);
       setAuthError('');
       const user = await authService.register(email, password, name);
+      console.log('[Auth] Registration successful, user:', user.email);
       setCurrentUser(user);
       setIsAuthenticated(true);
 
       // Enable database sync for new users
+      console.log('[Auth] Enabling sync for new user...');
       setSyncEnabled(true);
-      console.log('Database sync enabled for new user');
+      console.log('[Auth] Database sync enabled for new user');
+      console.log('[Auth] Registration flow complete, showing dashboard');
     } catch (error: any) {
+      console.error('[Auth] Registration failed:', error);
       setAuthError(error.message || 'Registration failed');
       throw error;
     }
