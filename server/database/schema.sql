@@ -39,8 +39,9 @@ CREATE TABLE IF NOT EXISTS user_api_keys (
 CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON user_api_keys(user_id);
 
 -- Projects table (migrated from localStorage)
+-- Note: Using TEXT for id to support custom IDs from localStorage (e.g., "project_1762224409786_kl80xwye2")
 CREATE TABLE IF NOT EXISTS projects (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id TEXT PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     description TEXT,
@@ -67,7 +68,7 @@ CREATE INDEX IF NOT EXISTS idx_projects_archived ON projects(archived);
 -- Project collaborators (for future multi-user collaboration)
 CREATE TABLE IF NOT EXISTS project_collaborators (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role VARCHAR(50) DEFAULT 'viewer', -- owner, editor, viewer
     added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -80,7 +81,7 @@ CREATE INDEX IF NOT EXISTS idx_collaborators_user_id ON project_collaborators(us
 -- Tasks table
 CREATE TABLE IF NOT EXISTS tasks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     name VARCHAR(500) NOT NULL,
     description TEXT,
     phase_id VARCHAR(100),
@@ -106,7 +107,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_parent_task_id ON tasks(parent_task_id);
 -- Time logs table
 CREATE TABLE IF NOT EXISTS time_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     task_id UUID REFERENCES tasks(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     date DATE NOT NULL,
@@ -181,7 +182,7 @@ CREATE TABLE IF NOT EXISTS invitations (
     inviter_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     email VARCHAR(255) NOT NULL,
     role VARCHAR(50) NOT NULL, -- viewer, editor, owner
-    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
     message TEXT,
     status VARCHAR(50) DEFAULT 'pending', -- pending, accepted, declined, expired
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
