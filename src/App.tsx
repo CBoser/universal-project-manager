@@ -99,7 +99,16 @@ function App() {
     const checkAuth = async () => {
       try {
         console.log('[Auth] Checking authentication status...');
-        const user = await authService.getCurrentUser();
+
+        // Add a timeout to prevent hanging
+        const timeoutPromise = new Promise<null>((_, reject) =>
+          setTimeout(() => reject(new Error('Auth check timeout')), 10000)
+        );
+
+        const authPromise = authService.getCurrentUser();
+
+        const user = await Promise.race([authPromise, timeoutPromise]) as any;
+
         if (user) {
           console.log('[Auth] User authenticated:', user.email);
           setIsAuthenticated(true);
@@ -111,6 +120,8 @@ function App() {
           console.log('[Auth] Projects synced from server on app load');
         } else {
           console.log('[Auth] No authenticated user found');
+          setIsAuthenticated(false);
+          setCurrentUser(null);
         }
       } catch (error) {
         console.error('[Auth] Error checking authentication:', error);
@@ -118,6 +129,7 @@ function App() {
         setIsAuthenticated(false);
         setCurrentUser(null);
       } finally {
+        console.log('[Auth] Auth check complete, showing UI');
         setIsCheckingAuth(false);
       }
     };
