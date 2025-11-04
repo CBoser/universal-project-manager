@@ -27,6 +27,12 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,          // Production frontend URL (set in Render)
 ].filter(Boolean); // Remove undefined values
 
+console.log('🌐 CORS allowed origins:', allowedOrigins);
+if (!process.env.FRONTEND_URL && process.env.NODE_ENV === 'production') {
+  console.error('⚠️  WARNING: FRONTEND_URL not set in production! CORS will block frontend requests!');
+  console.error('⚠️  Set FRONTEND_URL environment variable to your frontend URL (e.g., https://universal-pm-frontend.onrender.com)');
+}
+
 // Middleware
 app.use(cors({
   origin: (origin, callback) => {
@@ -34,9 +40,12 @@ app.use(cors({
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
+      console.log(`✅ CORS allowed request from origin: ${origin}`);
       callback(null, true);
     } else {
-      console.warn(`⚠️  CORS blocked request from origin: ${origin}`);
+      console.error(`❌ CORS blocked request from origin: ${origin}`);
+      console.error(`❌ Allowed origins are: ${allowedOrigins.join(', ')}`);
+      console.error(`❌ Set FRONTEND_URL environment variable if this is your frontend!`);
       callback(new Error('Not allowed by CORS'));
     }
   },
