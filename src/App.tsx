@@ -45,10 +45,13 @@ import {
   setCurrentProjectId,
   syncFromServer,
   setSyncEnabled,
+  setSyncStatusCallback,
+  getLastSyncTime,
 } from './services/projectStorage';
 import { createTimeLog } from './services/timeLogService';
 import { getActiveUsers } from './services/userService';
 import * as authService from './services/authApiService';
+import { SyncIndicator, type SyncStatus } from './components/SyncIndicator';
 
 interface MoveHistory {
   taskId: string;
@@ -65,24 +68,68 @@ function App() {
   const [authError, setAuthError] = useState<string>('');
   const [projectSyncKey, setProjectSyncKey] = useState<number>(0); // Used to trigger Dashboard refresh
 
+  // Sync status state
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const [syncError, setSyncError] = useState<string>('');
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(getLastSyncTime());
+
+  // Register sync status callback
+  useEffect(() => {
+    setSyncStatusCallback((status, error) => {
+      setSyncStatus(status);
+      if (error) {
+        setSyncError(error);
+      } else {
+        setSyncError('');
+      }
+      if (status === 'synced') {
+        setLastSyncTime(new Date().toISOString());
+        // Refresh Dashboard by incrementing key
+        setProjectSyncKey(prev => prev + 1);
+      }
+    });
+
+    return () => {
+      setSyncStatusCallback(null);
+    };
+  }, []);
+
   // Check authentication status on mount
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const user = await authService.getCurrentUser();
+        console.log('[Auth] Checking authentication status...');
+
+        // Add a timeout to prevent hanging
+        const timeoutPromise = new Promise<null>((_, reject) =>
+          setTimeout(() => reject(new Error('Auth check timeout')), 10000)
+        );
+
+        const authPromise = authService.getCurrentUser();
+
+        const user = await Promise.race([authPromise, timeoutPromise]) as any;
+
         if (user) {
+          console.log('[Auth] User authenticated:', user.email);
           setIsAuthenticated(true);
           setCurrentUser(user);
 
           // Enable sync and load projects from server for already logged-in users
           setSyncEnabled(true);
           await syncFromServer();
-          setProjectSyncKey(prev => prev + 1); // Trigger Dashboard refresh
-          console.log('Projects synced from server on app load');
+          console.log('[Auth] Projects synced from server on app load');
+        } else {
+          console.log('[Auth] No authenticated user found');
+          setIsAuthenticated(false);
+          setCurrentUser(null);
         }
       } catch (error) {
-        console.error('Error checking auth:', error);
+        console.error('[Auth] Error checking authentication:', error);
+        // Ensure we show login screen on error
+        setIsAuthenticated(false);
+        setCurrentUser(null);
       } finally {
+        console.log('[Auth] Auth check complete, showing UI');
         setIsCheckingAuth(false);
       }
     };
@@ -92,17 +139,21 @@ function App() {
   // Handle login
   const handleLogin = async (email: string, password: string) => {
     try {
+      console.log('[Auth] Attempting login for:', email);
       setAuthError('');
       const user = await authService.login(email, password);
+      console.log('[Auth] Login successful, user:', user.email);
       setCurrentUser(user);
       setIsAuthenticated(true);
 
       // Enable database sync and load projects from server
+      console.log('[Auth] Enabling sync and fetching projects...');
       setSyncEnabled(true);
       await syncFromServer();
-      setProjectSyncKey(prev => prev + 1); // Trigger Dashboard refresh
-      console.log('Projects synced from server after login');
+      console.log('[Auth] Projects synced from server after login');
+      console.log('[Auth] Login flow complete, showing dashboard');
     } catch (error: any) {
+      console.error('[Auth] Login failed:', error);
       setAuthError(error.message || 'Login failed');
       throw error;
     }
@@ -111,15 +162,20 @@ function App() {
   // Handle registration
   const handleRegister = async (email: string, password: string, name: string) => {
     try {
+      console.log('[Auth] Attempting registration for:', email);
       setAuthError('');
       const user = await authService.register(email, password, name);
+      console.log('[Auth] Registration successful, user:', user.email);
       setCurrentUser(user);
       setIsAuthenticated(true);
 
       // Enable database sync for new users
+      console.log('[Auth] Enabling sync for new user...');
       setSyncEnabled(true);
-      console.log('Database sync enabled for new user');
+      console.log('[Auth] Database sync enabled for new user');
+      console.log('[Auth] Registration flow complete, showing dashboard');
     } catch (error: any) {
+      console.error('[Auth] Registration failed:', error);
       setAuthError(error.message || 'Registration failed');
       throw error;
     }
@@ -1179,6 +1235,8 @@ function App() {
             key={projectSyncKey}
             onOpenProject={handleOpenProject}
             onNewProject={handleNewProject}
+            currentUser={currentUser}
+            onLogout={handleLogout}
           />
         </div>
 
@@ -1275,6 +1333,7 @@ function App() {
           gap: '1rem',
           fontSize: '0.85rem',
           color: theme.textMuted,
+          flexWrap: 'wrap',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {isSaving ? (
@@ -1294,6 +1353,15 @@ function App() {
               </>
             )}
           </div>
+
+          {/* Sync Status Indicator */}
+          {isAuthenticated && (
+            <SyncIndicator
+              status={syncStatus}
+              lastSyncTime={lastSyncTime || undefined}
+              error={syncError}
+            />
+          )}
 
           {/* Autosave Settings */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

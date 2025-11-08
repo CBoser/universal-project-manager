@@ -8,6 +8,32 @@ import * as projectApi from './projectApiService';
 const PROJECTS_STORAGE_KEY = 'upm_projects';
 const CURRENT_PROJECT_KEY = 'upm_current_project_id';
 const SYNC_ENABLED_KEY = 'upm_sync_enabled';
+const LAST_SYNC_TIME_KEY = 'upm_last_sync_time';
+
+// Sync status callback type
+type SyncStatusCallback = (status: 'syncing' | 'synced' | 'error', error?: string) => void;
+let syncStatusCallback: SyncStatusCallback | null = null;
+
+/**
+ * Set a callback to be notified of sync status changes
+ */
+export function setSyncStatusCallback(callback: SyncStatusCallback | null): void {
+  syncStatusCallback = callback;
+}
+
+/**
+ * Get the last sync time
+ */
+export function getLastSyncTime(): string | null {
+  return localStorage.getItem(LAST_SYNC_TIME_KEY);
+}
+
+/**
+ * Set the last sync time
+ */
+function setLastSyncTime(): void {
+  localStorage.setItem(LAST_SYNC_TIME_KEY, new Date().toISOString());
+}
 
 /**
  * Check if database sync is enabled
@@ -49,6 +75,9 @@ export async function syncFromServer(): Promise<SavedProject[]> {
       return getAllProjects();
     }
 
+    // Notify start of sync
+    syncStatusCallback?.('syncing');
+
     console.log('Syncing projects from server...');
     const serverProjects = await projectApi.getAllProjects(false);
 
@@ -78,11 +107,20 @@ export async function syncFromServer(): Promise<SavedProject[]> {
 
     // Replace localStorage with server projects (server is source of truth)
     localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(serverProjects));
+    setLastSyncTime();
 
     console.log(`Synced ${serverProjects.length} projects from server`);
+
+    // Notify sync success
+    syncStatusCallback?.('synced');
+
     return serverProjects;
   } catch (error: any) {
     console.error('Error syncing from server:', error);
+
+    // Notify sync error
+    syncStatusCallback?.('error', error.message || 'Failed to sync from server');
+
     // Fall back to localStorage on error
     return getAllProjects();
   }
@@ -98,12 +136,23 @@ export async function syncToServer(project: SavedProject): Promise<SavedProject 
       return null;
     }
 
+    // Notify start of sync
+    syncStatusCallback?.('syncing');
+
     console.log(`Syncing project ${project.meta.id} to server...`);
-    const serverProject = await projectApi.syncProject(project);
+    await projectApi.syncProject(project);
+    setLastSyncTime();
+
     console.log(`Successfully synced project ${project.meta.id}`);
-    return serverProject;
+
+    // Notify sync success
+    syncStatusCallback?.('synced');
   } catch (error: any) {
     console.error('Error syncing to server:', error);
+
+    // Notify sync error
+    syncStatusCallback?.('error', error.message || 'Failed to sync to server');
+
     // Don't throw - we want to save locally even if server sync fails
     return null;
   }

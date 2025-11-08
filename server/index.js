@@ -27,6 +27,12 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,          // Production frontend URL (set in Render)
 ].filter(Boolean); // Remove undefined values
 
+console.log('🌐 CORS allowed origins:', allowedOrigins);
+if (!process.env.FRONTEND_URL && process.env.NODE_ENV === 'production') {
+  console.error('⚠️  WARNING: FRONTEND_URL not set in production! CORS will block frontend requests!');
+  console.error('⚠️  Set FRONTEND_URL environment variable to your frontend URL (e.g., https://universal-pm-frontend.onrender.com)');
+}
+
 // Middleware
 app.use(cors({
   origin: (origin, callback) => {
@@ -34,9 +40,12 @@ app.use(cors({
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
+      console.log(`✅ CORS allowed request from origin: ${origin}`);
       callback(null, true);
     } else {
-      console.warn(`⚠️  CORS blocked request from origin: ${origin}`);
+      console.error(`❌ CORS blocked request from origin: ${origin}`);
+      console.error(`❌ Allowed origins are: ${allowedOrigins.join(', ')}`);
+      console.error(`❌ Set FRONTEND_URL environment variable if this is your frontend!`);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -69,12 +78,16 @@ app.use(session({
 const authRoutes = require('./routes/auth');
 const apiKeyRoutes = require('./routes/apiKeys');
 const projectRoutes = require('./routes/projects');
+const invitationRoutes = require('./routes/invitations');
+const adminRoutes = require('./routes/admin');
 const apiKeyService = require('./services/apiKeyService');
 
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/keys', apiKeyRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/invitations', invitationRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Get Anthropic client with API key (from env, database, or request)
 async function getAnthropicClient(customApiKey, userId) {

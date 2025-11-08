@@ -39,8 +39,9 @@ CREATE TABLE IF NOT EXISTS user_api_keys (
 CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON user_api_keys(user_id);
 
 -- Projects table (migrated from localStorage)
+-- Note: Using TEXT for id to support custom IDs from localStorage (e.g., "project_1762224409786_kl80xwye2")
 CREATE TABLE IF NOT EXISTS projects (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id TEXT PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     description TEXT,
@@ -67,7 +68,7 @@ CREATE INDEX IF NOT EXISTS idx_projects_archived ON projects(archived);
 -- Project collaborators (for future multi-user collaboration)
 CREATE TABLE IF NOT EXISTS project_collaborators (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role VARCHAR(50) DEFAULT 'viewer', -- owner, editor, viewer
     added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -80,7 +81,7 @@ CREATE INDEX IF NOT EXISTS idx_collaborators_user_id ON project_collaborators(us
 -- Tasks table
 CREATE TABLE IF NOT EXISTS tasks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     name VARCHAR(500) NOT NULL,
     description TEXT,
     phase_id VARCHAR(100),
@@ -106,7 +107,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_parent_task_id ON tasks(parent_task_id);
 -- Time logs table
 CREATE TABLE IF NOT EXISTS time_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     task_id UUID REFERENCES tasks(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     date DATE NOT NULL,
@@ -173,3 +174,66 @@ BEGIN
     RETURN pgp_sym_decrypt(decode(encrypted_key, 'base64'), encryption_key);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Invitations table for team collaboration
+CREATE TABLE IF NOT EXISTS invitations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    token VARCHAR(255) UNIQUE NOT NULL,
+    inviter_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL, -- viewer, editor, owner
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    message TEXT,
+    status VARCHAR(50) DEFAULT 'pending', -- pending, accepted, declined, expired
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    accepted_at TIMESTAMP WITH TIME ZONE,
+    accepted_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_invitations_token ON invitations(token);
+CREATE INDEX IF NOT EXISTS idx_invitations_email ON invitations(email);
+CREATE INDEX IF NOT EXISTS idx_invitations_inviter_id ON invitations(inviter_id);
+CREATE INDEX IF NOT EXISTS idx_invitations_status ON invitations(status);
+
+-- Feedback table for user feedback and feature requests
+CREATE TABLE IF NOT EXISTS feedback (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    user_email VARCHAR(255),
+    user_name VARCHAR(255),
+    feedback_type VARCHAR(100) NOT NULL, -- bug, feature, improvement, other
+    content TEXT NOT NULL,
+    priority VARCHAR(50) DEFAULT 'medium', -- low, medium, high, critical
+    status VARCHAR(50) DEFAULT 'new', -- new, reviewing, planned, in_progress, completed, closed
+    admin_notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_user_id ON feedback(user_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_type ON feedback(feedback_type);
+CREATE INDEX IF NOT EXISTS idx_feedback_status ON feedback(status);
+CREATE INDEX IF NOT EXISTS idx_feedback_priority ON feedback(priority);
+
+-- Admin configuration table for system settings
+CREATE TABLE IF NOT EXISTS admin_config (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    key VARCHAR(255) UNIQUE NOT NULL,
+    value TEXT,
+    value_type VARCHAR(50) DEFAULT 'string', -- string, number, boolean, json
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_config_key ON admin_config(key);
+
+-- Trigger for feedback updated_at
+CREATE TRIGGER update_feedback_updated_at BEFORE UPDATE ON feedback
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger for admin_config updated_at
+CREATE TRIGGER update_admin_config_updated_at BEFORE UPDATE ON admin_config
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
