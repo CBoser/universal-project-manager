@@ -464,18 +464,33 @@ export async function syncProject(project: SavedProject): Promise<SavedProject> 
   try {
     console.log(`Syncing project ${project.meta.id} with ${project.tasks.length} tasks`);
 
-    // Try to get the project first
+    // Try to get the project first by ID
     let existingProject: SavedProject | null = null;
     let projectExists = false;
 
     try {
       existingProject = await getProject(project.meta.id);
       projectExists = true;
-      console.log('Project exists on server, updating...');
+      console.log('Project exists on server (matched by ID), updating...');
     } catch (error: any) {
       if (error.message === 'Project not found') {
-        projectExists = false;
-        console.log('Project not found on server, creating...');
+        // ID not found, but project might exist with different ID
+        // Check if we already created this project by looking at all projects
+        const allProjects = await getAllProjects(false);
+        existingProject = allProjects.find(p =>
+          p.meta.name === project.meta.name &&
+          Math.abs(new Date(p.meta.createdAt!).getTime() - new Date(project.meta.createdAt!).getTime()) < 120000 // Within 2 minutes
+        ) || null;
+
+        if (existingProject) {
+          projectExists = true;
+          console.log(`Project exists on server with different ID (matched by name): ${existingProject.meta.id}`);
+          // Use the server's ID going forward
+          project.meta.id = existingProject.meta.id;
+        } else {
+          projectExists = false;
+          console.log('Project not found on server, creating...');
+        }
       } else {
         throw error;
       }
@@ -527,7 +542,7 @@ export async function syncProject(project: SavedProject): Promise<SavedProject> 
       savedProject = await createProject(project);
     }
 
-    console.log(`Successfully synced project ${project.meta.id}`);
+    console.log(`Successfully synced project ${savedProject.meta.id}`);
     return savedProject;
   } catch (error: any) {
     console.error('Error syncing project:', error);
