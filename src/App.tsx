@@ -443,19 +443,96 @@ function App() {
 
   // Auto-save at configured interval
   useEffect(() => {
-    if (autoSaveInterval <= 0) return; // Autosave disabled
+    if (autoSaveInterval <= 0 || currentView === 'dashboard') return; // Autosave disabled or in dashboard
 
     const interval = setInterval(() => {
-      handleSave(false); // Silent autosave
+      // Save current project state
+      if (currentProjectId) {
+        const now = new Date().toISOString();
+
+        // Save to legacy storage service
+        storageService.save({
+          tasks,
+          taskStates,
+          projectMeta,
+          phaseColors,
+          categories,
+          progressSnapshots,
+          savedAt: now,
+        });
+
+        // Save to new project storage
+        const project: SavedProject = {
+          meta: projectMeta,
+          tasks,
+          taskStates,
+          phases: Object.keys(phases).map(phaseId => ({
+            phaseId,
+            phaseTitle: phases[phaseId],
+            description: '',
+            color: phaseColors[phaseId] || '#607D8B',
+            typicalDuration: 0,
+          })),
+        };
+        saveProjectToStorage(project);
+
+        setLastSaved(now);
+        console.log('Auto-saved at', now);
+      }
     }, autoSaveInterval * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [tasks, taskStates, projectMeta, phaseColors, categories, progressSnapshots, autoSaveInterval]);
+  }, [autoSaveInterval, currentProjectId, currentView]);
 
   // Save autosave interval to localStorage when it changes
   useEffect(() => {
     localStorage.setItem('autoSaveInterval', autoSaveInterval.toString());
   }, [autoSaveInterval]);
+
+  // Auto-save when tasks or taskStates change (debounced)
+  useEffect(() => {
+    if (!currentProjectId || currentView === 'dashboard') return;
+
+    // Debounce saves by 2 seconds
+    const timeoutId = setTimeout(() => {
+      const now = new Date().toISOString();
+
+      console.log('Auto-saving due to task changes...');
+
+      // Save to legacy storage
+      storageService.save({
+        tasks,
+        taskStates,
+        projectMeta,
+        phaseColors,
+        categories,
+        progressSnapshots,
+        savedAt: now,
+      });
+
+      // Save to new project storage
+      const project: SavedProject = {
+        meta: {
+          ...projectMeta,
+          updatedAt: now,
+        },
+        tasks,
+        taskStates,
+        phases: Object.keys(phases).map(phaseId => ({
+          phaseId,
+          phaseTitle: phases[phaseId],
+          description: '',
+          color: phaseColors[phaseId] || '#607D8B',
+          typicalDuration: 0,
+        })),
+      };
+
+      saveProjectToStorage(project);
+      setLastSaved(now);
+    }, 2000);
+
+    return () => clearTimeout(timeoutId);
+  }, [tasks, taskStates, currentProjectId, currentView]);
 
   // Click-outside handler to close dropdowns
   useEffect(() => {
@@ -475,6 +552,12 @@ function App() {
     try {
       const now = new Date().toISOString();
 
+      console.log('Saving project...', {
+        currentProjectId,
+        tasksCount: tasks.length,
+        hasProjectMeta: !!projectMeta.id,
+      });
+
       // Save to legacy storage service for backwards compatibility
       storageService.save({
         tasks,
@@ -488,13 +571,37 @@ function App() {
 
       // Also save to new project storage if we're in a project
       if (currentProjectId) {
-        saveCurrentProject();
+        const project: SavedProject = {
+          meta: {
+            ...projectMeta,
+            updatedAt: now,
+          },
+          tasks,
+          taskStates,
+          phases: Object.keys(phases).map(phaseId => ({
+            phaseId,
+            phaseTitle: phases[phaseId],
+            description: '',
+            color: phaseColors[phaseId] || '#607D8B',
+            typicalDuration: 0,
+          })),
+        };
+
+        console.log('Saving to project storage:', project.meta.id);
+        saveProjectToStorage(project);
       }
 
       setLastSaved(now);
 
       if (showAlert) {
-        alert('Progress saved!');
+        alert('Progress saved successfully!');
+      }
+
+      console.log('Save completed successfully');
+    } catch (error) {
+      console.error('Error during save:', error);
+      if (showAlert) {
+        alert('Error saving project: ' + (error as Error).message);
       }
     } finally {
       setIsSaving(false);

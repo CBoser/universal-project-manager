@@ -75,9 +75,14 @@ function transformProjectFromApi(apiProject: any, tasks: any[] = []): SavedProje
       notes: task.description || '', // Backend 'description' -> frontend 'notes'
     });
 
-    // Build the TaskState object
+    // Build the TaskState object - map backend status to frontend status
+    let frontendStatus = task.status || 'pending';
+    if (frontendStatus === 'not-started') {
+      frontendStatus = 'pending'; // Map backend 'not-started' to frontend 'pending'
+    }
+
     taskStates[taskId] = {
-      status: task.status || 'not-started',
+      status: frontendStatus,
       notes: task.notes || '',
       actualHours: task.actual_hours?.toString() || '0',
       blockedReason: task.blocked_reason || '',
@@ -305,13 +310,19 @@ export async function deleteProject(projectId: string): Promise<void> {
  */
 export async function createTask(projectId: string, task: Task, taskState?: any): Promise<any> {
   try {
+    // Map frontend status to backend status
+    let backendStatus = taskState?.status || 'pending';
+    if (backendStatus === 'pending') {
+      backendStatus = 'not-started'; // Map frontend 'pending' to backend 'not-started'
+    }
+
     const apiTask = {
       name: task.task, // Frontend 'task' -> backend 'name'
       description: task.notes || '', // Frontend 'notes' -> backend 'description'
       phaseId: task.phase || null,
       category: task.category || 'other',
       priority: 'medium', // Default priority (not in frontend Task)
-      status: taskState?.status || 'not-started',
+      status: backendStatus,
       dependencies: task.dependencies || [],
       estimatedHours: task.adjustedEstHours || 0,
       order: 0, // Default order (not in frontend Task)
@@ -360,13 +371,19 @@ export async function updateTask(
   taskState?: any
 ): Promise<any> {
   try {
+    // Map frontend status to backend status
+    let backendStatus = taskState?.status || 'pending';
+    if (backendStatus === 'pending') {
+      backendStatus = 'not-started'; // Map frontend 'pending' to backend 'not-started'
+    }
+
     const apiTask = {
       name: task.task, // Frontend 'task' -> backend 'name'
       description: task.notes || '', // Frontend 'notes' -> backend 'description'
       phaseId: task.phase || null,
       category: task.category || 'other',
       priority: 'medium', // Default priority (not in frontend Task)
-      status: taskState?.status || 'not-started',
+      status: backendStatus,
       dependencies: task.dependencies || [],
       estimatedHours: task.adjustedEstHours || 0,
       order: 0, // Default order (not in frontend Task)
@@ -439,18 +456,73 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
  */
 export async function syncProject(project: SavedProject): Promise<SavedProject> {
   try {
+    console.log(`Syncing project ${project.meta.id} with ${project.tasks.length} tasks`);
+
     // Try to get the project first
+    let existingProject: SavedProject | null = null;
+    let projectExists = false;
+
     try {
-      await getProject(project.meta.id);
-      // Project exists, update it
-      return await updateProject(project);
+      existingProject = await getProject(project.meta.id);
+      projectExists = true;
+      console.log('Project exists on server, updating...');
     } catch (error: any) {
       if (error.message === 'Project not found') {
-        // Project doesn't exist, create it
-        return await createProject(project);
+        projectExists = false;
+        console.log('Project not found on server, creating...');
+      } else {
+        throw error;
       }
-      throw error;
     }
+
+    let savedProject: SavedProject;
+
+    if (projectExists) {
+      // Update existing project
+      savedProject = await updateProject(project);
+
+      // Now sync all tasks
+      // Get existing task IDs from server
+      const existingTaskIds = new Set(existingProject!.tasks.map(t => t.id));
+
+      for (const task of project.tasks) {
+        const taskState = project.taskStates[task.id];
+
+        if (existingTaskIds.has(task.id)) {
+          // Update existing task
+          try {
+            await updateTask(project.meta.id, task.id, task, taskState);
+          } catch (err) {
+            console.error(`Failed to update task ${task.id}:`, err);
+          }
+        } else {
+          // Create new task
+          try {
+            await createTask(project.meta.id, task, taskState);
+          } catch (err) {
+            console.error(`Failed to create task ${task.id}:`, err);
+          }
+        }
+      }
+
+      // Delete tasks that no longer exist locally
+      const localTaskIds = new Set(project.tasks.map(t => t.id));
+      for (const existingTask of existingProject!.tasks) {
+        if (!localTaskIds.has(existingTask.id)) {
+          try {
+            await deleteTask(project.meta.id, existingTask.id);
+          } catch (err) {
+            console.error(`Failed to delete task ${existingTask.id}:`, err);
+          }
+        }
+      }
+    } else {
+      // Create new project (createProject already handles tasks)
+      savedProject = await createProject(project);
+    }
+
+    console.log(`Successfully synced project ${project.meta.id}`);
+    return savedProject;
   } catch (error: any) {
     console.error('Error syncing project:', error);
     throw error;
