@@ -52,7 +52,31 @@ export async function syncFromServer(): Promise<SavedProject[]> {
     console.log('Syncing projects from server...');
     const serverProjects = await projectApi.getAllProjects(false);
 
-    // Store in localStorage
+    // Get local projects
+    const localProjects = getAllProjects();
+
+    // Try to match local projects with server projects by name and update IDs
+    const currentProjectId = getCurrentProjectId();
+
+    localProjects.forEach(localProject => {
+      // Find matching server project by name and approximate creation time
+      const serverMatch = serverProjects.find(sp =>
+        sp.meta.name === localProject.meta.name &&
+        Math.abs(new Date(sp.meta.createdAt!).getTime() - new Date(localProject.meta.createdAt!).getTime()) < 60000 // Within 1 minute
+      );
+
+      if (serverMatch && serverMatch.meta.id !== localProject.meta.id) {
+        console.log(`Matched local project "${localProject.meta.name}" (${localProject.meta.id}) with server ID ${serverMatch.meta.id}`);
+
+        // Update current project ID if needed
+        if (currentProjectId === localProject.meta.id) {
+          setCurrentProjectId(serverMatch.meta.id);
+          console.log(`Updated current project ID: ${currentProjectId} -> ${serverMatch.meta.id}`);
+        }
+      }
+    });
+
+    // Replace localStorage with server projects (server is source of truth)
     localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(serverProjects));
 
     console.log(`Synced ${serverProjects.length} projects from server`);
@@ -67,19 +91,21 @@ export async function syncFromServer(): Promise<SavedProject[]> {
 /**
  * Sync a single project to server
  */
-export async function syncToServer(project: SavedProject): Promise<void> {
+export async function syncToServer(project: SavedProject): Promise<SavedProject | null> {
   try {
     if (!isSyncEnabled()) {
       console.log('Sync is disabled, skipping server sync');
-      return;
+      return null;
     }
 
     console.log(`Syncing project ${project.meta.id} to server...`);
-    await projectApi.syncProject(project);
+    const serverProject = await projectApi.syncProject(project);
     console.log(`Successfully synced project ${project.meta.id}`);
+    return serverProject;
   } catch (error: any) {
     console.error('Error syncing to server:', error);
     // Don't throw - we want to save locally even if server sync fails
+    return null;
   }
 }
 
@@ -116,10 +142,27 @@ export function saveProject(project: SavedProject): void {
 
     localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
 
-    // Async sync to server (don't wait for it)
-    syncToServer(project).catch(err => {
-      console.error('Background sync failed:', err);
-    });
+    // Async sync to server (don't wait for it, but handle ID updates)
+    if (isSyncEnabled()) {
+      syncToServer(project).then((serverProject) => {
+        // If the server returned a different ID, update localStorage
+        if (serverProject && serverProject.meta.id !== project.meta.id) {
+          console.log(`Server assigned new ID: ${project.meta.id} -> ${serverProject.meta.id}`);
+
+          // Update current project ID if this is the active project
+          if (getCurrentProjectId() === project.meta.id) {
+            setCurrentProjectId(serverProject.meta.id);
+          }
+
+          // Remove old project and add with new ID
+          const updatedProjects = getAllProjects().filter(p => p.meta.id !== project.meta.id);
+          updatedProjects.push(serverProject);
+          localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(updatedProjects));
+        }
+      }).catch(err => {
+        console.error('Background sync failed:', err);
+      });
+    }
   } catch (error) {
     console.error('Error saving project:', error);
     throw error;
