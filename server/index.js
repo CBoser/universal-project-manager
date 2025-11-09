@@ -9,6 +9,7 @@ const dotenv = require('dotenv');
 const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
 const { pool } = require('./database/db');
+const path = require('path');
 
 dotenv.config();
 
@@ -260,6 +261,22 @@ app.post('/api/ai/test', async (req, res) => {
   }
 });
 
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.join(__dirname, '../dist');
+
+  console.log('🌐 Serving static files from:', distPath);
+
+  // Serve static files
+  app.use(express.static(distPath));
+
+  // Catch-all route to serve index.html for client-side routing
+  // This must be AFTER all API routes
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
 // Start server - Listen on all interfaces for cloud deployment
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 Universal Project Manager Backend`);
@@ -268,5 +285,10 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🗄️  Database: ${process.env.DATABASE_URL ? 'Cloud PostgreSQL (SSL)' : 'Local PostgreSQL'}`);
   console.log(`🤖 Anthropic API: ${process.env.VITE_ANTHROPIC_API_KEY ? 'Configured ✓' : 'Not configured ✗'}`);
   console.log(`🔧 Mock mode: ${process.env.VITE_USE_MOCK_AI === 'true' ? 'Enabled' : 'Disabled'}`);
-  console.log(`🌐 CORS allowed origins: ${allowedOrigins.length > 0 ? allowedOrigins.join(', ') : 'All origins (development only)'}\n`);
+  console.log(`🌐 CORS allowed origins: ${allowedOrigins.length > 0 ? allowedOrigins.join(', ') : 'All origins (development only)'}`);
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`📦 Serving static frontend from: dist/\n`);
+  } else {
+    console.log();
+  }
 });
